@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { UserMenu } from "@/components/user-menu"
-import { formatDate } from "@/lib/utils"
+import { APP_URL, formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -64,7 +64,7 @@ export function AdminClient({ user }: AdminClientProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [settings, setSettings] = useState<SiteSettings>({
     siteName: "Shortly",
-    siteUrl: "http://localhost:3000",
+    siteUrl: APP_URL,
     allowAnonymous: true,
     anonMaxLinksPerHour: 3,
     anonMaxClicks: 10,

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
+import { APP_URL } from "@/lib/utils"
 import { eq, and, isNull, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -109,6 +110,6 @@ export async function POST(req: NextRequest) {
     expiresAt: finalExpiresAt,
   })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  const appUrl = APP_URL
   return NextResponse.json({ shortUrl: `${appUrl}/${slug}`, slug, maxClicks: finalMaxClicks })
 }
