@@ -101,7 +101,7 @@ export const clickLog = sqliteTable("click_log", {
 export const siteSetting = sqliteTable("site_setting", {
   id: text("id").primaryKey().default("default"),
   siteName: text("site_name").notNull().default("Shortly"),
-  siteUrl: text("site_url").notNull().default("http://localhost:3000"),
+  siteUrl: text("site_url").notNull().default(""),
   allowAnonymous: integer("allow_anonymous", { mode: "boolean" }).notNull().default(true),
   anonMaxLinksPerHour: integer("anon_max_links_per_hour").notNull().default(3),
   anonMaxClicks: integer("anon_max_clicks").notNull().default(10),

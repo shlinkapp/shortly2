@@ -11,11 +11,8 @@ export function getClientIp(ip: string | null, forwardedFor: string | null, real
     if (forwardedFor) {
         const parts = forwardedFor.split(",").map((s) => s.trim()).filter(Boolean)
         if (parts.length > 0) {
-            // 简单防护：大多数云环境/CDN（如 Cloudflare 或 Vercel）会将最真实客户端 IP 置于最左，但如果不做可信代理网段过滤，容易 spoofing。
-            // 在这里我们尽可能取第一个有效部分（常见标准）。但在一个更严格的信任链应用中，你可能需要使用专门的 proxy-addr 库。
-            // 对于 Vercel 而言，`x-forwarded-for` 通常是安全的 (Vercel 帮你保证不会被轻易 spoof)
             const firstIp = parts[0]
-            return firstIp
+            if (firstIp) return firstIp
         }
     }
 

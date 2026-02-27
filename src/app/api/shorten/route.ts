@@ -4,6 +4,7 @@ import { db, initDb } from "@/lib/db"
 import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
 import { getClientIp } from "@/lib/ip"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { eq, and, isNull, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -45,43 +46,25 @@ export async function POST(req: NextRequest) {
   }
 
   // --- Rate Limiting Logic ---
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-
   let creatorIp: string | null = getClientIp(
     null,
     headersList.get("x-forwarded-for"),
     headersList.get("x-real-ip")
   )
 
-  if (!session) {
-    if (creatorIp) {
-      const recentLinks = await db.select({ count: sql<number>`count(*)` })
-        .from(shortLink)
-        .where(
-          and(
-            eq(shortLink.creatorIp, creatorIp),
-            isNull(shortLink.userId),
-            sql`${shortLink.createdAt} >= ${oneHourAgo}`
-          )
-        ).get()
+  const rateLimitResponse = await checkRateLimit({
+    ip: creatorIp,
+    userId: session?.user?.id,
+    allowAnonymous,
+    anonLimit: settings?.anonMaxLinksPerHour ?? 3,
+    userLimit: settings?.userMaxLinksPerHour ?? 50,
+  })
 
-      if (recentLinks && recentLinks.count >= (settings?.anonMaxLinksPerHour ?? 3)) {
-        return NextResponse.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 })
-      }
-    }
-  } else {
-    const recentLinks = await db.select({ count: sql<number>`count(*)` })
-      .from(shortLink)
-      .where(
-        and(
-          eq(shortLink.userId, session.user.id),
-          sql`${shortLink.createdAt} >= ${oneHourAgo}`
-        )
-      ).get()
-
-    if (recentLinks && recentLinks.count >= (settings?.userMaxLinksPerHour ?? 50)) {
-      return NextResponse.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 })
-    }
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.error },
+      { status: rateLimitResponse.status }
+    )
   }
   // --- Rate Limiting Logic End ---
 
