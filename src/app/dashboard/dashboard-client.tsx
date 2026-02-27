@@ -103,7 +103,10 @@ export function DashboardClient({ user }: DashboardClientProps) {
     setLogsLoading(true)
     try {
       const res = await fetch(`/api/logs/${link.id}`)
-      if (res.ok) setLogs(await res.json())
+      if (res.ok) {
+        const body = await res.json()
+        setLogs(Array.isArray(body) ? body : (body.data || []))
+      }
     } finally {
       setLogsLoading(false)
     }
