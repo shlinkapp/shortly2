@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core"
 import { sql } from "drizzle-orm"
 
 export const user = sqliteTable("user", {
@@ -78,7 +78,11 @@ export const shortLink = sqliteTable("short_link", {
   maxClicks: integer("max_clicks"),
   creatorIp: text("creator_ip"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-})
+}, (t) => ({
+  userIdIdx: index("short_link_user_id_idx").on(t.userId),
+  createdAtIdx: index("short_link_created_at_idx").on(t.createdAt),
+  creatorIpIdx: index("short_link_creator_ip_idx").on(t.creatorIp),
+}))
 
 export const clickLog = sqliteTable("click_log", {
   id: text("id").primaryKey(),
@@ -89,7 +93,10 @@ export const clickLog = sqliteTable("click_log", {
   userAgent: text("user_agent"),
   ipAddress: text("ip_address"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-})
+}, (t) => ({
+  linkIdIdx: index("click_log_link_id_idx").on(t.linkId),
+  createdAtIdx: index("click_log_created_at_idx").on(t.createdAt),
+}))
 
 export const siteSetting = sqliteTable("site_setting", {
   id: text("id").primaryKey().default("default"),

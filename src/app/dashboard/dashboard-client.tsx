@@ -56,19 +56,34 @@ export function DashboardClient({ user }: DashboardClientProps) {
   const [logs, setLogs] = useState<ClickLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
-  const fetchLinks = useCallback(async () => {
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
+  const fetchLinks = useCallback(async (currentPage: number) => {
     setLoading(true)
     try {
-      const res = await fetch("/api/links")
-      if (res.ok) setLinks(await res.json())
+      const res = await fetch(`/api/links?page=${currentPage}&limit=10`)
+      if (res.ok) {
+        const body = await res.json()
+        // Backward compatibility in case it returns an array directly during transition
+        if (Array.isArray(body)) {
+          setLinks(body)
+        } else {
+          setLinks(body.data || [])
+          setTotalPages(body.totalPages || 1)
+          setTotalItems(body.total || 0)
+        }
+      }
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchLinks()
-  }, [fetchLinks])
+    fetchLinks(page)
+  }, [fetchLinks, page])
 
   async function handleDelete(id: string) {
     const res = await fetch(`/api/links/${id}`, { method: "DELETE" })
@@ -122,7 +137,7 @@ export function DashboardClient({ user }: DashboardClientProps) {
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -197,6 +212,32 @@ export function DashboardClient({ user }: DashboardClientProps) {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+            <div>
+              共 {totalItems} 条短链，当前第 {page} / {totalPages} 页
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                上一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                下一页
+              </Button>
+            </div>
           </div>
         )}
       </main>

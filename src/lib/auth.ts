@@ -46,7 +46,7 @@ if (githubClientId && githubClientSecret) {
 }
 
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET!,
   database: drizzleAdapter(db, {
     provider: "sqlite",
@@ -76,16 +76,13 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          const result = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(schema.user)
-          const count = Number(result[0]?.count ?? 0)
-          if (count === 1) {
-            await db
-              .update(schema.user)
-              .set({ role: "admin" })
-              .where(eq(schema.user.id, user.id))
-          }
+          // Atomic update to avoid race conditions when multiple users sign up simultaneously
+          await db.run(sql`
+            UPDATE user SET role = 'admin'
+            WHERE id = ${user.id} AND id = (
+              SELECT id FROM user ORDER BY created_at ASC LIMIT 1
+            )
+          `)
         },
       },
     },

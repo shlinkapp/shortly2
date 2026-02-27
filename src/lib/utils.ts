@@ -13,7 +13,7 @@ export function formatDate(date: string | number | Date | null | undefined): str
   }
   if (isNaN(d.getTime())) return "Invalid Date"
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(undefined, {
     timeZone: "Asia/Shanghai",
     year: "numeric",
     month: "2-digit",

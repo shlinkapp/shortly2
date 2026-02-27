@@ -43,10 +43,10 @@ bun install
 
 ### 2. 环境变量配置
 
-将项目根目录的 `.env.example` 复制为 `.env` 或者 `.env.local` 即可，并填入您的相关配置：
+将项目根目录的 `.env.example` 复制为 `.env` 即可，并填入您的相关配置：
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
 主要的的环境变量包括：

@@ -3,12 +3,14 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
+import { getClientIp } from "@/lib/ip"
 import { eq, and, isNull, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
 export async function POST(req: NextRequest) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
+  const headersList = await headers()
+  const session = await auth.api.getSession({ headers: headersList })
 
   const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
   const allowAnonymous = settings?.allowAnonymous ?? true
@@ -45,10 +47,13 @@ export async function POST(req: NextRequest) {
   // --- Rate Limiting Logic ---
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
 
-  let creatorIp: string | null = null
+  let creatorIp: string | null = getClientIp(
+    null,
+    headersList.get("x-forwarded-for"),
+    headersList.get("x-real-ip")
+  )
+
   if (!session) {
-    const headersList = await headers()
-    creatorIp = headersList.get("x-forwarded-for")?.split(",")[0].trim() || headersList.get("x-real-ip") || null
     if (creatorIp) {
       const recentLinks = await db.select({ count: sql<number>`count(*)` })
         .from(shortLink)

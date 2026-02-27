@@ -25,23 +25,24 @@ export async function GET(
     return NextResponse.json({ error: "This link has reached its maximum access count and is no longer available." }, { status: 410 })
   }
 
-  await db
-    .update(shortLink)
-    .set({ clicks: sql`${shortLink.clicks} + 1` })
-    .where(eq(shortLink.id, link.id))
-
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     req.headers.get("x-real-ip") ||
     null
 
-  await db.insert(clickLog).values({
-    id: crypto.randomUUID(),
-    linkId: link.id,
-    referrer: req.headers.get("referer"),
-    userAgent: req.headers.get("user-agent"),
-    ipAddress: ip,
-  })
+  await Promise.all([
+    db
+      .update(shortLink)
+      .set({ clicks: sql`${shortLink.clicks} + 1` })
+      .where(eq(shortLink.id, link.id)),
+    db.insert(clickLog).values({
+      id: crypto.randomUUID(),
+      linkId: link.id,
+      referrer: req.headers.get("referer"),
+      userAgent: req.headers.get("user-agent"),
+      ipAddress: ip,
+    })
+  ])
 
   return NextResponse.redirect(link.originalUrl, { status: 302 })
 }

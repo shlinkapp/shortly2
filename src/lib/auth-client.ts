@@ -3,7 +3,7 @@ import { emailOTPClient } from "better-auth/client/plugins"
 import { passkeyClient } from "@better-auth/passkey/client"
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  baseURL: process.env.NEXT_PUBLIC_APP_URL,
   plugins: [emailOTPClient(), passkeyClient()],
 })
 
