@@ -3,6 +3,7 @@ import { linkLog } from "@/lib/schema"
 
 export type LinkLogEventType =
   | "link_created"
+  | "link_created_api"
   | "redirect_success"
   | "redirect_blocked_expired"
   | "redirect_blocked_max_clicks"

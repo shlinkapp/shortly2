@@ -124,6 +124,16 @@ async function _initDb() {
       user_max_links_per_hour INTEGER NOT NULL DEFAULT 50
     );
 
+    CREATE TABLE IF NOT EXISTS api_key (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      key_prefix TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      last_used_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE INDEX IF NOT EXISTS short_link_user_id_idx ON short_link(user_id);
     CREATE INDEX IF NOT EXISTS short_link_created_at_idx ON short_link(created_at);
     CREATE INDEX IF NOT EXISTS short_link_creator_ip_idx ON short_link(creator_ip);
@@ -133,6 +143,8 @@ async function _initDb() {
     CREATE INDEX IF NOT EXISTS link_log_owner_user_id_idx ON link_log(owner_user_id);
     CREATE INDEX IF NOT EXISTS link_log_event_type_idx ON link_log(event_type);
     CREATE INDEX IF NOT EXISTS link_log_created_at_idx ON link_log(created_at);
+    CREATE INDEX IF NOT EXISTS api_key_user_id_idx ON api_key(user_id);
+    CREATE INDEX IF NOT EXISTS api_key_key_prefix_idx ON api_key(key_prefix);
 
     INSERT OR IGNORE INTO site_setting (id) VALUES ('default');
   `)

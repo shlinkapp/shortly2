@@ -1,11 +1,10 @@
-const CHARS = "abcdefghijklmnopqrstuvwxyz"
+import { customAlphabet } from "nanoid"
+
+const SLUG_ALPHABET = "abcdefhiklmnorstuvwxz"
+const createSlug = customAlphabet(SLUG_ALPHABET)
 
 export function generateSlug(length = 6): string {
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes)
-    .map((b) => CHARS[b % CHARS.length])
-    .join("")
+  return createSlug(length)
 }
 
 export function isValidSlug(slug: string): boolean {

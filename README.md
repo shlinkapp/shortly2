@@ -11,7 +11,12 @@ Shortly 是一个现代化、轻量级且功能强大的开源短链接生成系
   - Passkey (WebAuthn) 快捷登录
 - **📊 管理与统计**：
   - **用户面板**：已登录用户可以管理自己生成的短链，查看每个链接的点击数、跳转来源和设备信息。
+  - **API 管理面板**：在用户后台提供 API Key 管理、OpenAPI 调用说明、ShareX 配置文件下载。
   - **管理后台**：管理员支持统筹管理系统中所有的链接与用户，并可以动态调节全局站点设置和风控策略。
+- **🔌 OpenAPI 短链能力**：
+  - 支持通过 `Bearer API Key` 调用 `POST /api/openapi/shorten` 创建短链。
+  - 支持 `customSlug`、`maxClicks`、`expiresAt` 参数。
+  - 可直接生成并导入 ShareX `.sxcu` 配置文件。
 - **🛡️ 灵活的风控与限流**：
   - **匿名用户**：支持限制其每小时生成限制（基于 IP 频率限制）以及最大访问次数，支持由后台动态调整配置（例如限制为只允许被点击访问 10 次）。
   - **已登录用户**：享有更高的生成配额，并支持设置**自定义后缀**、**过期时间 (有效期)** 以及**最大访问次数**。
@@ -52,6 +57,7 @@ cp .env.example .env
 主要的的环境变量包括：
 - 数据库连接（例如指向本地 SQLite 文件）
 - `BETTER_AUTH_SECRET`: 用于保护会话的随机字符串
+- `API_KEY_PEPPER`: （可选）用于 API Key 哈希加盐，建议生产环境配置
 - `NEXT_PUBLIC_APP_URL`: 应用程序的前台 URL (如 `http://localhost:3000`)
 - `RESEND_API_KEY`: 选填，用于开启邮件验证码登录
 - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: 选填，用于开启 GitHub 授权登录

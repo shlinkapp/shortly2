@@ -25,6 +25,7 @@ import { toast } from "sonner"
 import { Copy, Trash2, BarChart2, ExternalLink, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { PasskeyManager } from "@/components/passkey-manager"
+import { ApiManagementPanel } from "@/components/api-management"
 
 interface ShortLink {
   id: string
@@ -153,6 +154,7 @@ export function DashboardClient({ user }: DashboardClientProps) {
         <Tabs defaultValue="links">
           <TabsList className="mb-6">
             <TabsTrigger value="links">我的短链</TabsTrigger>
+            <TabsTrigger value="api">API 管理</TabsTrigger>
             <TabsTrigger value="security">安全设置</TabsTrigger>
           </TabsList>
 
@@ -294,6 +296,10 @@ export function DashboardClient({ user }: DashboardClientProps) {
 
           <TabsContent value="security">
             <PasskeyManager />
+          </TabsContent>
+
+          <TabsContent value="api">
+            <ApiManagementPanel />
           </TabsContent>
         </Tabs>
       </main>

@@ -1,5 +1,6 @@
 export const LOG_EVENT_LABELS: Record<string, string> = {
   link_created: "链接创建",
+  link_created_api: "API 创建链接",
   redirect_success: "成功跳转",
   redirect_blocked_expired: "过期拦截",
   redirect_blocked_max_clicks: "点击上限拦截",

@@ -125,3 +125,18 @@ export const siteSetting = sqliteTable("site_setting", {
   anonMaxClicks: integer("anon_max_clicks").notNull().default(10),
   userMaxLinksPerHour: integer("user_max_links_per_hour").notNull().default(50),
 })
+
+export const apiKey = sqliteTable("api_key", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyPrefix: text("key_prefix").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  userIdIdx: index("api_key_user_id_idx").on(t.userId),
+  keyPrefixIdx: index("api_key_key_prefix_idx").on(t.keyPrefix),
+}))
