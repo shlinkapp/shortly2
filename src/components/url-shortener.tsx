@@ -78,7 +78,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
     <div className="w-full max-w-md flex flex-col gap-3">
       <Input
         type="url"
-        placeholder="粘贴长链接..."
+        placeholder="粘贴长链接于此，以开始缩短......"
         value={url}
         onChange={(e) => handleUrlChange(e.target.value)}
         onKeyDown={(e) => {
@@ -105,7 +105,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
               <div className="flex flex-col gap-1.5">
                 <Input
                   type="number"
-                  placeholder="Max clicks (optional)"
+                  placeholder="最大可点击次数（可选）"
                   value={maxClicks}
                   onChange={(e) => setMaxClicks(e.target.value)}
                   className="h-10"
@@ -115,7 +115,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
               <div className="flex flex-col gap-1.5">
                 <Input
                   type="datetime-local"
-                  placeholder="Expiration Date (optional)"
+                  placeholder="过期时间（可选）"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                   className="h-10 text-muted-foreground"
@@ -182,7 +182,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
               </div>
               {!user && result.maxClicks && (
                 <p className="text-xs text-destructive text-center font-medium">
-                  匿名用户生成的链接在 {result.maxClicks} 次访问后失效，登录后解除限制
+                  匿名用户生成的链接在 {result.maxClicks} 次访问后失效，登录后以解除限制
                 </p>
               )}
             </div>
@@ -195,7 +195,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
           <Link href="/login" className="text-foreground font-medium hover:underline">
             登录
           </Link>{" "}
-          以管理和跟踪您的链接
+          以配置自定义后缀并解除相关限制
         </p>
       )}
     </div>
