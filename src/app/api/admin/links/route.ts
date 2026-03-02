@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, user } from "@/lib/schema"
+import { getLinkStatus } from "@/lib/link-status"
 import { desc, eq, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -30,6 +31,8 @@ export async function GET(req: NextRequest) {
       originalUrl: shortLink.originalUrl,
       slug: shortLink.slug,
       clicks: shortLink.clicks,
+      maxClicks: shortLink.maxClicks,
+      expiresAt: shortLink.expiresAt,
       createdAt: shortLink.createdAt,
     })
     .from(shortLink)
@@ -38,8 +41,13 @@ export async function GET(req: NextRequest) {
     .limit(pageSize)
     .offset(offset)
 
+  const data = links.map((link) => ({
+    ...link,
+    ...getLinkStatus(link),
+  }))
+
   return NextResponse.json({
-    data: links,
+    data,
     total: totalCount.count,
     page,
     pageSize,

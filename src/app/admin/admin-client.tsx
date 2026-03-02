@@ -3,11 +3,18 @@
 import { useState, useEffect, useCallback } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { formatDate } from "@/lib/utils"
+import { getLogEventLabel } from "@/lib/log-events"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   Table,
@@ -18,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Trash2, ExternalLink, ArrowLeft, Save, Shield } from "lucide-react"
+import { Trash2, ExternalLink, ArrowLeft, Save, Shield, BarChart2 } from "lucide-react"
 import Link from "next/link"
 
 interface AdminLink {
@@ -26,9 +33,24 @@ interface AdminLink {
   slug: string
   originalUrl: string
   clicks: number
+  maxClicks: number | null
+  expiresAt: string | null
+  hasClickLimit: boolean
+  hasExpiration: boolean
+  isExpired: boolean
   createdAt: number
   userName: string | null
   userEmail: string | null
+}
+
+interface LinkLog {
+  id: string
+  eventType: string
+  referrer: string | null
+  userAgent: string | null
+  ipAddress: string | null
+  statusCode: number | null
+  createdAt: number
 }
 
 interface AdminUser {
@@ -72,6 +94,20 @@ export function AdminClient({ user }: AdminClientProps) {
   })
   const [loading, setLoading] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false)
+  const [selectedLink, setSelectedLink] = useState<AdminLink | null>(null)
+  const [logs, setLogs] = useState<LinkLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
+  function getLogBadgeVariant(eventType: string): "secondary" | "destructive" | "outline" {
+    if (eventType.includes("blocked") || eventType.includes("deleted")) {
+      return "destructive"
+    }
+    if (eventType === "redirect_success") {
+      return "secondary"
+    }
+    return "outline"
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -113,6 +149,23 @@ export function AdminClient({ user }: AdminClientProps) {
       setLinks((prev) => prev.filter((l) => l.id !== id))
     } else {
       toast.error("Failed to delete link")
+    }
+  }
+
+  async function handleViewLogs(link: AdminLink) {
+    setSelectedLink(link)
+    setLogsDialogOpen(true)
+    setLogsLoading(true)
+    try {
+      const res = await fetch(`/api/logs/${link.id}`)
+      if (res.ok) {
+        const body = await res.json()
+        setLogs(Array.isArray(body) ? body : (body.data || []))
+      } else {
+        setLogs([])
+      }
+    } finally {
+      setLogsLoading(false)
     }
   }
 
@@ -173,8 +226,11 @@ export function AdminClient({ user }: AdminClientProps) {
                       <TableHead className="min-w-[160px]">目标</TableHead>
                       <TableHead className="hidden sm:table-cell">用户</TableHead>
                       <TableHead className="w-20 text-center hidden sm:table-cell">点击</TableHead>
-                      <TableHead className="w-28 hidden md:table-cell">创建时间</TableHead>
-                      <TableHead className="w-12 text-right">删除</TableHead>
+                      <TableHead className="w-28 text-center hidden md:table-cell">点击限制</TableHead>
+                      <TableHead className="w-32 hidden lg:table-cell">过期时间</TableHead>
+                      <TableHead className="w-20 text-center">状态</TableHead>
+                      <TableHead className="w-28 hidden xl:table-cell">创建时间</TableHead>
+                      <TableHead className="w-20 text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -202,18 +258,47 @@ export function AdminClient({ user }: AdminClientProps) {
                         <TableCell className="text-center hidden sm:table-cell">
                           <Badge variant="secondary">{link.clicks}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
+                        <TableCell className="text-center hidden md:table-cell">
+                          {link.hasClickLimit ? (
+                            <Badge variant={link.isExpired ? "destructive" : "outline"}>
+                              {link.clicks}/{link.maxClicks ?? "—"}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">未设置</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+                          {link.hasExpiration ? formatDate(link.expiresAt) : "未设置"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={link.isExpired ? "destructive" : "secondary"}>
+                            {link.isExpired ? "已失效" : "有效"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden xl:table-cell">
                           {formatDate(link.createdAt)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteLink(link.id)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewLogs(link)}
+                              className="h-8 w-8 p-0"
+                              title="View logs"
+                            >
+                              <BarChart2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteLink(link.id)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -369,6 +454,63 @@ export function AdminClient({ user }: AdminClientProps) {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              日志记录 —{" "}
+              <span className="font-mono">/{selectedLink?.slug}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {logsLoading ? (
+            <div className="py-8 text-center text-muted-foreground">加载中...</div>
+          ) : logs.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">暂无日志</div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[140px]">时间</TableHead>
+                    <TableHead className="min-w-[120px]">事件</TableHead>
+                    <TableHead className="w-20 text-center hidden sm:table-cell">状态码</TableHead>
+                    <TableHead className="min-w-[140px]">来源</TableHead>
+                    <TableHead className="hidden md:table-cell">IP</TableHead>
+                    <TableHead className="hidden lg:table-cell">浏览器</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {formatDate(log.createdAt)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge variant={getLogBadgeVariant(log.eventType)}>
+                          {getLogEventLabel(log.eventType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-muted-foreground hidden sm:table-cell">
+                        {log.statusCode ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[160px] truncate">
+                        {log.referrer || <span className="text-muted-foreground">Direct</span>}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden md:table-cell">
+                        {log.ipAddress || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden lg:table-cell">
+                        {log.userAgent?.split(" ").slice(-1)[0] || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

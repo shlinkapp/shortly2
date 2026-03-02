@@ -98,6 +98,24 @@ export const clickLog = sqliteTable("click_log", {
   createdAtIdx: index("click_log_created_at_idx").on(t.createdAt),
 }))
 
+export const linkLog = sqliteTable("link_log", {
+  id: text("id").primaryKey(),
+  linkId: text("link_id"),
+  linkSlug: text("link_slug").notNull(),
+  ownerUserId: text("owner_user_id"),
+  eventType: text("event_type").notNull(),
+  referrer: text("referrer"),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  statusCode: integer("status_code"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  linkIdIdx: index("link_log_link_id_idx").on(t.linkId),
+  ownerUserIdIdx: index("link_log_owner_user_id_idx").on(t.ownerUserId),
+  eventTypeIdx: index("link_log_event_type_idx").on(t.eventType),
+  createdAtIdx: index("link_log_created_at_idx").on(t.createdAt),
+}))
+
 export const siteSetting = sqliteTable("site_setting", {
   id: text("id").primaryKey().default("default"),
   siteName: text("site_name").notNull().default("Shortly"),

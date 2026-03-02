@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { formatDate } from "@/lib/utils"
+import { getLogEventLabel } from "@/lib/log-events"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -30,14 +31,21 @@ interface ShortLink {
   slug: string
   originalUrl: string
   clicks: number
+  maxClicks: number | null
+  expiresAt: string | null
+  hasClickLimit: boolean
+  hasExpiration: boolean
+  isExpired: boolean
   createdAt: number
 }
 
 interface ClickLog {
   id: string
+  eventType: string
   referrer: string | null
   userAgent: string | null
   ipAddress: string | null
+  statusCode: number | null
   createdAt: number
 }
 
@@ -62,6 +70,16 @@ export function DashboardClient({ user }: DashboardClientProps) {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+
+  function getLogBadgeVariant(eventType: string): "secondary" | "destructive" | "outline" {
+    if (eventType.includes("blocked") || eventType.includes("deleted")) {
+      return "destructive"
+    }
+    if (eventType === "redirect_success") {
+      return "secondary"
+    }
+    return "outline"
+  }
 
   const fetchLinks = useCallback(async (currentPage: number) => {
     setLoading(true)
@@ -156,7 +174,10 @@ export function DashboardClient({ user }: DashboardClientProps) {
                       <TableHead className="min-w-[120px]">短链</TableHead>
                       <TableHead className="min-w-[160px]">目标</TableHead>
                       <TableHead className="w-20 text-center hidden sm:table-cell">点击</TableHead>
-                      <TableHead className="w-28 hidden md:table-cell">创建时间</TableHead>
+                      <TableHead className="w-28 text-center hidden md:table-cell">点击限制</TableHead>
+                      <TableHead className="w-32 hidden lg:table-cell">过期时间</TableHead>
+                      <TableHead className="w-20 text-center">状态</TableHead>
+                      <TableHead className="w-28 hidden xl:table-cell">创建时间</TableHead>
                       <TableHead className="w-24 text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -195,7 +216,24 @@ export function DashboardClient({ user }: DashboardClientProps) {
                         <TableCell className="text-center hidden sm:table-cell">
                           <Badge variant="secondary">{link.clicks}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
+                        <TableCell className="text-center hidden md:table-cell">
+                          {link.hasClickLimit ? (
+                            <Badge variant={link.isExpired ? "destructive" : "outline"}>
+                              {link.clicks}/{link.maxClicks ?? "—"}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">未设置</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+                          {link.hasExpiration ? formatDate(link.expiresAt) : "未设置"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={link.isExpired ? "destructive" : "secondary"}>
+                            {link.isExpired ? "已失效" : "有效"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden xl:table-cell">
                           {formatDate(link.createdAt)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -278,8 +316,11 @@ export function DashboardClient({ user }: DashboardClientProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[140px]">时间</TableHead>
-                    <TableHead>来源</TableHead>
-                    <TableHead className="hidden sm:table-cell">浏览器</TableHead>
+                    <TableHead className="min-w-[120px]">事件</TableHead>
+                    <TableHead className="w-20 text-center hidden sm:table-cell">状态码</TableHead>
+                    <TableHead className="min-w-[140px]">来源</TableHead>
+                    <TableHead className="hidden md:table-cell">IP</TableHead>
+                    <TableHead className="hidden lg:table-cell">浏览器</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -288,10 +329,21 @@ export function DashboardClient({ user }: DashboardClientProps) {
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {formatDate(log.createdAt)}
                       </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge variant={getLogBadgeVariant(log.eventType)}>
+                          {getLogEventLabel(log.eventType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-muted-foreground hidden sm:table-cell">
+                        {log.statusCode ?? "—"}
+                      </TableCell>
                       <TableCell className="text-sm max-w-[160px] truncate">
                         {log.referrer || <span className="text-muted-foreground">Direct</span>}
                       </TableCell>
-                      <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden sm:table-cell">
+                      <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden md:table-cell">
+                        {log.ipAddress || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden lg:table-cell">
                         {log.userAgent?.split(" ").slice(-1)[0] || "—"}
                       </TableCell>
                     </TableRow>

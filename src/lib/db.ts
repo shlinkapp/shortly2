@@ -86,6 +86,9 @@ async function _initDb() {
       original_url TEXT NOT NULL,
       slug TEXT NOT NULL UNIQUE,
       clicks INTEGER NOT NULL DEFAULT 0,
+      expires_at INTEGER,
+      max_clicks INTEGER,
+      creator_ip TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
@@ -98,13 +101,59 @@ async function _initDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS link_log (
+      id TEXT PRIMARY KEY,
+      link_id TEXT,
+      link_slug TEXT NOT NULL,
+      owner_user_id TEXT,
+      event_type TEXT NOT NULL,
+      referrer TEXT,
+      user_agent TEXT,
+      ip_address TEXT,
+      status_code INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS site_setting (
       id TEXT PRIMARY KEY DEFAULT 'default',
       site_name TEXT NOT NULL DEFAULT 'Shortly',
-      site_url TEXT NOT NULL DEFAULT 'http://localhost:3000',
-      allow_anonymous INTEGER NOT NULL DEFAULT 1
+      site_url TEXT NOT NULL DEFAULT '',
+      allow_anonymous INTEGER NOT NULL DEFAULT 1,
+      anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3,
+      anon_max_clicks INTEGER NOT NULL DEFAULT 10,
+      user_max_links_per_hour INTEGER NOT NULL DEFAULT 50
     );
+
+    CREATE INDEX IF NOT EXISTS short_link_user_id_idx ON short_link(user_id);
+    CREATE INDEX IF NOT EXISTS short_link_created_at_idx ON short_link(created_at);
+    CREATE INDEX IF NOT EXISTS short_link_creator_ip_idx ON short_link(creator_ip);
+    CREATE INDEX IF NOT EXISTS click_log_link_id_idx ON click_log(link_id);
+    CREATE INDEX IF NOT EXISTS click_log_created_at_idx ON click_log(created_at);
+    CREATE INDEX IF NOT EXISTS link_log_link_id_idx ON link_log(link_id);
+    CREATE INDEX IF NOT EXISTS link_log_owner_user_id_idx ON link_log(owner_user_id);
+    CREATE INDEX IF NOT EXISTS link_log_event_type_idx ON link_log(event_type);
+    CREATE INDEX IF NOT EXISTS link_log_created_at_idx ON link_log(created_at);
 
     INSERT OR IGNORE INTO site_setting (id) VALUES ('default');
   `)
+
+  await Promise.all([
+    ensureColumn("short_link", "expires_at", "expires_at INTEGER"),
+    ensureColumn("short_link", "max_clicks", "max_clicks INTEGER"),
+    ensureColumn("short_link", "creator_ip", "creator_ip TEXT"),
+    ensureColumn("site_setting", "anon_max_links_per_hour", "anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3"),
+    ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10"),
+    ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
+  ])
+}
+
+async function ensureColumn(table: string, column: string, definition: string) {
+  const result = await client.execute(`PRAGMA table_info(${table});`)
+  const columns = (result.rows as Array<Record<string, unknown>>).map((row) => String(row.name))
+
+  if (columns.includes(column)) {
+    return
+  }
+
+  await client.execute(`ALTER TABLE ${table} ADD COLUMN ${definition};`)
 }

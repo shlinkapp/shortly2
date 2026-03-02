@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
-import { shortLink, clickLog } from "@/lib/schema"
+import { shortLink, linkLog } from "@/lib/schema"
 import { and, eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -18,43 +18,52 @@ export async function GET(
   const { linkId } = await params
   const isAdmin = (session.user as { role?: string }).role === "admin"
 
-  const link = await db
-    .select()
-    .from(shortLink)
-    .where(
-      isAdmin
-        ? eq(shortLink.id, linkId)
-        : and(eq(shortLink.id, linkId), eq(shortLink.userId, session.user.id))
-    )
-    .get()
+  if (!isAdmin) {
+    const ownedLink = await db
+      .select({ id: shortLink.id })
+      .from(shortLink)
+      .where(and(eq(shortLink.id, linkId), eq(shortLink.userId, session.user.id)))
+      .get()
 
-  if (!link) {
-    return NextResponse.json({ error: "Link not found" }, { status: 404 })
+    if (!ownedLink) {
+      const ownedLog = await db
+        .select({ id: linkLog.id })
+        .from(linkLog)
+        .where(and(eq(linkLog.linkId, linkId), eq(linkLog.ownerUserId, session.user.id)))
+        .get()
+
+      if (!ownedLog) {
+        return NextResponse.json({ error: "Link not found" }, { status: 404 })
+      }
+    }
   }
 
   const { searchParams } = new URL(_req.url)
-  const page = parseInt(searchParams.get("page") || "1", 10)
-  const pageSize = parseInt(searchParams.get("pageSize") || "50", 10)
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
+  const pageSize = Math.max(1, Math.min(200, parseInt(searchParams.get("pageSize") || "50", 10)))
   const offset = (page - 1) * pageSize
 
-  const [totalCount] = await db
+  const totalCount = await db
     .select({ count: sql<number>`count(*)` })
-    .from(clickLog)
-    .where(eq(clickLog.linkId, linkId))
+    .from(linkLog)
+    .where(eq(linkLog.linkId, linkId))
+    .get()
 
   const logs = await db
     .select()
-    .from(clickLog)
-    .where(eq(clickLog.linkId, linkId))
-    .orderBy(desc(clickLog.createdAt))
+    .from(linkLog)
+    .where(eq(linkLog.linkId, linkId))
+    .orderBy(desc(linkLog.createdAt))
     .limit(pageSize)
     .offset(offset)
 
+  const total = totalCount?.count ?? 0
+
   return NextResponse.json({
     data: logs,
-    total: totalCount.count,
+    total,
     page,
     pageSize,
-    totalPages: Math.ceil(totalCount.count / pageSize)
+    totalPages: Math.ceil(total / pageSize)
   })
 }

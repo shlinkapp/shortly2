@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
+import { getLinkStatus } from "@/lib/link-status"
 import { eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -30,11 +31,16 @@ export async function GET(req: NextRequest) {
       .offset(offset)
   ])
 
+  const data = links.map((link) => ({
+    ...link,
+    ...getLinkStatus(link),
+  }))
+
   const total = totalRes?.count ?? 0
   const totalPages = Math.ceil(total / limit)
 
   return NextResponse.json({
-    data: links,
+    data,
     total,
     page,
     limit,

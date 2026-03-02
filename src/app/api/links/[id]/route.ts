@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
+import { createLinkLog } from "@/lib/link-logs"
+import { getClientIp } from "@/lib/ip"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -10,7 +12,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
+  const headersList = await headers()
+  const session = await auth.api.getSession({ headers: headersList })
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -26,6 +29,22 @@ export async function DELETE(
   if (!link) {
     return NextResponse.json({ error: "Link not found" }, { status: 404 })
   }
+
+  const ip = getClientIp(
+    null,
+    headersList.get("x-forwarded-for"),
+    headersList.get("x-real-ip")
+  )
+  await createLinkLog({
+    linkId: link.id,
+    linkSlug: link.slug,
+    ownerUserId: link.userId,
+    eventType: "link_manual_deleted_by_user",
+    referrer: headersList.get("referer"),
+    userAgent: headersList.get("user-agent"),
+    ipAddress: ip,
+    statusCode: 200,
+  })
 
   await db.delete(shortLink).where(eq(shortLink.id, id))
   return NextResponse.json({ success: true })

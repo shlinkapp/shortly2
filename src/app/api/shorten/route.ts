@@ -5,7 +5,8 @@ import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
 import { getClientIp } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { eq, and, isNull, sql } from "drizzle-orm"
+import { createLinkLog } from "@/lib/link-logs"
+import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
 export async function POST(req: NextRequest) {
@@ -95,6 +96,17 @@ export async function POST(req: NextRequest) {
     creatorIp,
     maxClicks: finalMaxClicks,
     expiresAt: finalExpiresAt,
+  })
+
+  await createLinkLog({
+    linkId: id,
+    linkSlug: slug,
+    ownerUserId: session?.user?.id ?? null,
+    eventType: "link_created",
+    referrer: headersList.get("referer"),
+    userAgent: headersList.get("user-agent"),
+    ipAddress: creatorIp,
+    statusCode: 201,
   })
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
