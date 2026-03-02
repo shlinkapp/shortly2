@@ -78,7 +78,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
     <div className="w-full max-w-md flex flex-col gap-3">
       <Input
         type="url"
-        placeholder="粘贴长链接于此，以开始缩短......"
+        placeholder="请在此处粘贴长链接以开始缩短......"
         value={url}
         onChange={(e) => handleUrlChange(e.target.value)}
         onKeyDown={(e) => {
@@ -193,7 +193,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
       {!user && !showOptions && (
         <p className="text-center text-sm text-muted-foreground">
           <Link href="/login" className="text-foreground font-medium hover:underline">
-            登录
+            登录 Shortly
           </Link>{" "}
           以配置自定义后缀并解除相关限制
         </p>
