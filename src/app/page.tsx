@@ -41,7 +41,7 @@ export default async function HomePage() {
         <UrlShortener user={user} />
       </div>
 
-      <footer className="mt-8 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+      <footer className="fixed right-0 bottom-4 left-0 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <Copyright className="h-4 w-4" aria-hidden="true" />
           <span>{new Date().getFullYear()} Shortly.</span>
@@ -53,7 +53,7 @@ export default async function HomePage() {
           className="inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
         >
           <Github className="h-4 w-4" aria-hidden="true" />
-          <span>Fork and Deploy</span>
+          <span>Open Source</span>
         </Link>
       </footer>
     </main>
