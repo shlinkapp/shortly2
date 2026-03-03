@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, siteSetting } from "@/lib/schema"
-import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
+import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
-import { isRequestOriginAllowed, resolvePublicAppUrl } from "@/lib/http"
+import { isRequestOriginAllowed, isSelfShortenTarget, resolvePublicAppUrl } from "@/lib/http"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -48,8 +48,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Custom slugs are only available for logged-in users" }, { status: 403 })
   }
 
-  if (!url || !isValidUrl(url)) {
-    return NextResponse.json({ error: "Invalid URL" }, { status: 400 })
+  if (!url) {
+    return NextResponse.json({ error: "链接无效：链接不能为空" }, { status: 400 })
+  }
+
+  const urlValidation = validateUrl(url)
+  if (!urlValidation.valid) {
+    return NextResponse.json({ error: `链接无效：${urlValidation.reason}` }, { status: 400 })
+  }
+
+  if (isSelfShortenTarget(url, headersList, settings?.siteUrl)) {
+    return NextResponse.json(
+      { error: "链接无效：该链接包含本站域名（NEXT_PUBLIC_APP_URL 或当前 Host），为避免循环跳转不允许缩短。" },
+      { status: 400 }
+    )
   }
 
   if (customSlug && !isValidSlug(customSlug)) {

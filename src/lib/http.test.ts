@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { isRequestOriginAllowed, normalizeBaseUrl, parseBoundedInt } from "./http"
+import { isRequestOriginAllowed, isSelfShortenTarget, normalizeBaseUrl, parseBoundedInt } from "./http"
 
 describe("parseBoundedInt", () => {
   it("falls back when value is invalid", () => {
@@ -55,5 +55,30 @@ describe("isRequestOriginAllowed", () => {
         process.env.NEXT_PUBLIC_APP_URL = oldNextPublic
       }
     }
+  })
+})
+
+describe("isSelfShortenTarget", () => {
+  it("blocks URLs containing NEXT_PUBLIC_APP_URL", () => {
+    const oldNextPublic = process.env.NEXT_PUBLIC_APP_URL
+    process.env.NEXT_PUBLIC_APP_URL = "https://short.ly"
+    try {
+      expect(isSelfShortenTarget("https://short.ly/abc")).toBe(true)
+      expect(isSelfShortenTarget("https://example.com?next=https://short.ly/abc")).toBe(true)
+      expect(isSelfShortenTarget("https://example.com")).toBe(false)
+    } finally {
+      if (oldNextPublic === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_URL
+      } else {
+        process.env.NEXT_PUBLIC_APP_URL = oldNextPublic
+      }
+    }
+  })
+
+  it("blocks URLs containing request host", () => {
+    const headers = new Headers({ host: "short.local:3000" })
+    expect(isSelfShortenTarget("https://short.local:3000/path", headers)).toBe(true)
+    expect(isSelfShortenTarget("https://example.com?u=short.local:3000", headers)).toBe(true)
+    expect(isSelfShortenTarget("https://example.com/path", headers)).toBe(false)
   })
 })
