@@ -59,6 +59,8 @@ cp .env.example .env
 - `BETTER_AUTH_SECRET`: 用于保护会话的随机字符串
 - `API_KEY_PEPPER`: （可选）用于 API Key 哈希加盐，建议生产环境配置
 - `BOOTSTRAP_ADMIN_EMAILS`: （可选）逗号分隔邮箱列表，匹配的注册用户会自动获得 `admin` 权限
+- `TRUST_X_FORWARDED_FOR`: （可选）是否信任 `X-Forwarded-For`，默认 `true`
+- `TRUST_PROXY_HOPS`: （可选）受信代理跳数，默认 `1`，用于从 `X-Forwarded-For` 反推客户端 IP
 - `NEXT_PUBLIC_APP_URL`: 应用程序的前台 URL (如 `http://localhost:3000`)
 - `RESEND_API_KEY`: 选填，用于开启邮件验证码登录
 - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: 选填，用于开启 GitHub 授权登录

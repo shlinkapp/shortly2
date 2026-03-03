@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db, initDb } from "@/lib/db"
 import { apiKey, shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
-import { getClientIp } from "@/lib/ip"
+import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
 import { resolvePublicAppUrl } from "@/lib/http"
@@ -72,11 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
-  const creatorIp = getClientIp(
-    null,
-    req.headers.get("x-forwarded-for"),
-    req.headers.get("x-real-ip")
-  )
+  const creatorIp = getClientIpFromHeaders(req.headers)
   const rateLimitResult = await checkRateLimit({
     ip: creatorIp,
     userId: keyRecord.userId,

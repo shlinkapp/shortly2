@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
-import { getClientIp } from "@/lib/ip"
+import { getClientIpFromHeaders } from "@/lib/ip"
 import { createLinkLog } from "@/lib/link-logs"
 import { getLinkStatus } from "@/lib/link-status"
 import { and, eq, sql } from "drizzle-orm"
@@ -18,11 +18,7 @@ export async function GET(
     return NextResponse.redirect(new URL("/", req.url))
   }
 
-  const ip = getClientIp(
-    null,
-    req.headers.get("x-forwarded-for"),
-    req.headers.get("x-real-ip")
-  )
+  const ip = getClientIpFromHeaders(req.headers)
   const referrer = req.headers.get("referer")
   const userAgent = req.headers.get("user-agent")
   const status = getLinkStatus(link)

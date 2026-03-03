@@ -5,7 +5,7 @@ import { shortLink } from "@/lib/schema"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { createLinkLog } from "@/lib/link-logs"
-import { getClientIp } from "@/lib/ip"
+import { getClientIpFromHeaders } from "@/lib/ip"
 
 export async function DELETE(
   _req: NextRequest,
@@ -24,11 +24,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Link not found" }, { status: 404 })
   }
 
-  const ip = getClientIp(
-    null,
-    headersList.get("x-forwarded-for"),
-    headersList.get("x-real-ip")
-  )
+  const ip = getClientIpFromHeaders(headersList)
   await createLinkLog({
     linkId: link.id,
     linkSlug: link.slug,

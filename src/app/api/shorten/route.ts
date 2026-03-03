@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
-import { getClientIp } from "@/lib/ip"
+import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
 import { resolvePublicAppUrl } from "@/lib/http"
@@ -63,11 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   // --- Rate Limiting Logic ---
-  const creatorIp: string | null = getClientIp(
-    null,
-    headersList.get("x-forwarded-for"),
-    headersList.get("x-real-ip")
-  )
+  const creatorIp = getClientIpFromHeaders(headersList)
 
   const rateLimitResponse = await checkRateLimit({
     ip: creatorIp,

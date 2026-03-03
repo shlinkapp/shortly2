@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { createLinkLog } from "@/lib/link-logs"
-import { getClientIp } from "@/lib/ip"
+import { getClientIpFromHeaders } from "@/lib/ip"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -30,11 +30,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Link not found" }, { status: 404 })
   }
 
-  const ip = getClientIp(
-    null,
-    headersList.get("x-forwarded-for"),
-    headersList.get("x-real-ip")
-  )
+  const ip = getClientIpFromHeaders(headersList)
   await createLinkLog({
     linkId: link.id,
     linkSlug: link.slug,
