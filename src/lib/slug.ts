@@ -3,7 +3,7 @@ import { customAlphabet } from "nanoid"
 const SLUG_ALPHABET = "abcdefhiklmnorstuvwxz"
 const createSlug = customAlphabet(SLUG_ALPHABET)
 
-export function generateSlug(length = 6): string {
+export function generateSlug(length = 5): string {
   return createSlug(length)
 }
 
@@ -39,7 +39,7 @@ export function validateUrl(url: string): UrlValidationResult {
   if (hostname === "localhost" || hostname.endsWith(".local")) {
     return {
       valid: false,
-      reason: "不支持本地地址（localhost 或 .local 域名）",
+      reason: "不支持本地地址",
     }
   }
 

@@ -36,16 +36,16 @@ export async function POST(req: NextRequest) {
 
   const rawBody = await req.json().catch(() => null)
   if (!rawBody || typeof rawBody !== "object") {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    return NextResponse.json({ error: "无效的 JSON 主体" }, { status: 400 })
   }
   const parsedBody = shortenRequestSchema.safeParse(rawBody)
   if (!parsedBody.success) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    return NextResponse.json({ error: "无效的请求主体" }, { status: 400 })
   }
   const { url, customSlug, expiresAt, maxClicks } = parsedBody.data
 
   if (!session && customSlug) {
-    return NextResponse.json({ error: "Custom slugs are only available for logged-in users" }, { status: 403 })
+    return NextResponse.json({ error: "自定义后缀仅对登录用户开放" }, { status: 403 })
   }
 
   if (!url) {
@@ -59,14 +59,14 @@ export async function POST(req: NextRequest) {
 
   if (isSelfShortenTarget(url, headersList, settings?.siteUrl)) {
     return NextResponse.json(
-      { error: "链接无效：该链接包含本站域名（NEXT_PUBLIC_APP_URL 或当前 Host），为避免循环跳转不允许缩短。" },
+      { error: "链接无效：该链接包含本站域名，为避免循环跳转不允许缩短。" },
       { status: 400 }
     )
   }
 
   if (customSlug && !isValidSlug(customSlug)) {
     return NextResponse.json(
-      { error: "Invalid custom slug. Use only letters, numbers, hyphens, and underscores (max 50 chars)." },
+      { error: "自定义后缀无效。仅允许使用字母、数字、连字符和下划线（最多 50 个字符）。" },
       { status: 400 }
     )
   }
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await db.select().from(shortLink).where(eq(shortLink.slug, slug)).get()
   if (existing) {
-    return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
+    return NextResponse.json({ error: "自定义后缀已被占用" }, { status: 409 })
   }
 
   // --- Rate Limiting Logic ---
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes("UNIQUE")) {
-      return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
+      return NextResponse.json({ error: "自定义后缀已被占用" }, { status: 409 })
     }
     throw error
   }
