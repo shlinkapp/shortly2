@@ -5,12 +5,18 @@ import { passkey } from "@better-auth/passkey"
 import { Resend } from "resend"
 import { db } from "./db"
 import * as schema from "./schema"
-import { eq, sql } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 const resendApiKey = process.env.RESEND_API_KEY
 const resendFrom = process.env.RESEND_FROM_EMAIL || "noreply@example.com"
 const githubClientId = process.env.GITHUB_CLIENT_ID
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET
+const bootstrapAdminEmails = new Set(
+  (process.env.BOOTSTRAP_ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+)
 
 const plugins: Parameters<typeof betterAuth>[0]["plugins"] = [
   passkey({
@@ -76,13 +82,14 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Atomic update to avoid race conditions when multiple users sign up simultaneously
-          await db.run(sql`
-            UPDATE user SET role = 'admin'
-            WHERE id = ${user.id} AND id = (
-              SELECT id FROM user ORDER BY created_at ASC LIMIT 1
-            )
-          `)
+          if (!bootstrapAdminEmails.has(user.email.trim().toLowerCase())) {
+            return
+          }
+
+          await db
+            .update(schema.user)
+            .set({ role: "admin" })
+            .where(eq(schema.user.id, user.id))
         },
       },
     },

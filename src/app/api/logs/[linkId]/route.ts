@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, linkLog } from "@/lib/schema"
+import { parseBoundedInt } from "@/lib/http"
 import { and, eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -39,8 +40,8 @@ export async function GET(
   }
 
   const { searchParams } = new URL(_req.url)
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
-  const pageSize = Math.max(1, Math.min(200, parseInt(searchParams.get("pageSize") || "50", 10)))
+  const page = parseBoundedInt(searchParams.get("page"), 1, 1, 100000)
+  const pageSize = parseBoundedInt(searchParams.get("pageSize"), 50, 1, 200)
   const offset = (page - 1) * pageSize
 
   const totalCount = await db

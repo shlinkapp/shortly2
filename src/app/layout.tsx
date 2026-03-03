@@ -2,6 +2,9 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
+import { db, initDb } from "@/lib/db"
+import { siteSetting } from "@/lib/schema"
+import { eq } from "drizzle-orm"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,9 +16,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 })
 
-export const metadata: Metadata = {
-  title: "Shortly",
-  description: "Simple URL shortener",
+export async function generateMetadata(): Promise<Metadata> {
+  await initDb()
+  const settings = await db
+    .select({ siteName: siteSetting.siteName })
+    .from(siteSetting)
+    .where(eq(siteSetting.id, "default"))
+    .get()
+
+  return {
+    title: settings?.siteName || "Shortly",
+    description: "Simple URL shortener",
+  }
 }
 
 export default function RootLayout({

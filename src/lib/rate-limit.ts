@@ -11,42 +11,47 @@ interface RateLimitParams {
 }
 
 export async function checkRateLimit({ ip, userId, allowAnonymous, anonLimit, userLimit }: RateLimitParams) {
-    if (!allowAnonymous && !userId) {
-        return { success: false, error: "Authentication required", status: 401 }
+  if (!allowAnonymous && !userId) {
+    return { success: false, error: "Authentication required", status: 401 }
+  }
+
+  const oneHourAgoInSeconds = Math.floor((Date.now() - 60 * 60 * 1000) / 1000)
+
+  if (!userId) {
+    if (!ip) {
+      if (process.env.NODE_ENV === "production") {
+        return { success: false, error: "Unable to determine client IP", status: 400 }
+      }
+      return { success: true }
     }
 
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const recentLinks = await db.select({ count: sql<number>`count(*)` })
+      .from(shortLink)
+      .where(
+        and(
+          eq(shortLink.creatorIp, ip),
+          isNull(shortLink.userId),
+          sql`${shortLink.createdAt} >= ${oneHourAgoInSeconds}`
+        )
+      ).get()
 
-    if (!userId) {
-        if (ip) {
-            const recentLinks = await db.select({ count: sql<number>`count(*)` })
-                .from(shortLink)
-                .where(
-                    and(
-                        eq(shortLink.creatorIp, ip),
-                        isNull(shortLink.userId),
-                        sql`${shortLink.createdAt} >= ${oneHourAgo.getTime() / 1000}`
-                    )
-                ).get()
-
-            if (recentLinks && recentLinks.count >= anonLimit) {
-                return { success: false, error: "Rate limit exceeded. Try again later.", status: 429 }
-            }
-        }
-    } else {
-        const recentLinks = await db.select({ count: sql<number>`count(*)` })
-            .from(shortLink)
-            .where(
-                and(
-                    eq(shortLink.userId, userId),
-                    sql`${shortLink.createdAt} >= ${oneHourAgo.getTime() / 1000}`
-                )
-            ).get()
-
-        if (recentLinks && recentLinks.count >= userLimit) {
-            return { success: false, error: "Rate limit exceeded. Try again later.", status: 429 }
-        }
+    if (recentLinks && recentLinks.count >= anonLimit) {
+      return { success: false, error: "Rate limit exceeded. Try again later.", status: 429 }
     }
+  } else {
+    const recentLinks = await db.select({ count: sql<number>`count(*)` })
+      .from(shortLink)
+      .where(
+        and(
+          eq(shortLink.userId, userId),
+          sql`${shortLink.createdAt} >= ${oneHourAgoInSeconds}`
+        )
+      ).get()
 
-    return { success: true }
+    if (recentLinks && recentLinks.count >= userLimit) {
+      return { success: false, error: "Rate limit exceeded. Try again later.", status: 429 }
+    }
+  }
+
+  return { success: true }
 }

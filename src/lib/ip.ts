@@ -1,22 +1,92 @@
-export function getClientIp(ip: string | null, forwardedFor: string | null, realIp: string | null): string | null {
-    // 如果直接提供了请求的 IP (例如通过某些直接连接框架传下来的 socket IP)，则优先返回
-    // 但在常规 Next.js 的 headers 中，我们通常只依赖后面的 X-Forwarded-For 和 X-Real-IP
-    if (ip) return ip
+import { isIP } from "node:net"
 
-    // 当在反向代理（如 Nginx 代理和 CDN 链路）之后时
-    // 许多攻击者可以伪造 X-Forwarded-For 的最左边 IP
-    // 最接近服务器（信任层）增加的 IP 会挂在右边
-    // 为了缓解基于虚假左边 IP 的伪造攻击导致的绕过率限制，如果代理链可信，最好取倒数第一个或倒数第二个未篡改内部 IP。
-    // 作为最基础的 spoofing 防护:
-    if (forwardedFor) {
-        const parts = forwardedFor.split(",").map((s) => s.trim()).filter(Boolean)
-        if (parts.length > 0) {
-            const firstIp = parts[0]
-            if (firstIp) return firstIp
-        }
-    }
+interface ClientIpOptions {
+  cfConnectingIp?: string | null
+  trustXForwardedFor?: boolean
+  trustedProxyHops?: number
+}
 
-    if (realIp) return realIp.trim()
+function normalizeIp(candidate: string | null | undefined): string | null {
+  if (!candidate) return null
+  const trimmed = candidate.trim()
+  if (!trimmed) return null
 
+  const noBrackets = trimmed.startsWith("[") && trimmed.includes("]")
+    ? trimmed.slice(1, trimmed.indexOf("]"))
+    : trimmed
+
+  const maybeIpv4WithPort = noBrackets.includes(".") && noBrackets.includes(":")
+    ? noBrackets.split(":")[0]
+    : noBrackets
+
+  return isIP(maybeIpv4WithPort) ? maybeIpv4WithPort : null
+}
+
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]
+  if (!raw) return fallback
+  const normalized = raw.trim().toLowerCase()
+  if (["1", "true", "yes", "on"].includes(normalized)) return true
+  if (["0", "false", "no", "off"].includes(normalized)) return false
+  return fallback
+}
+
+function parseTrustedProxyHops(rawValue: number | null | undefined): number {
+  const fallbackFromEnv = Number.parseInt(process.env.TRUST_PROXY_HOPS || "1", 10)
+  const fallback = Number.isFinite(fallbackFromEnv) ? fallbackFromEnv : 1
+  const candidate = rawValue ?? fallback
+  if (!Number.isFinite(candidate)) return 1
+  return Math.min(10, Math.max(1, Math.floor(candidate)))
+}
+
+export function getClientIp(
+  ip: string | null,
+  forwardedFor: string | null,
+  realIp: string | null,
+  options?: ClientIpOptions
+): string | null {
+  const direct = normalizeIp(ip)
+  if (direct) return direct
+
+  const cloudflare = normalizeIp(options?.cfConnectingIp)
+  if (cloudflare) return cloudflare
+
+  const real = normalizeIp(realIp)
+  if (real) return real
+
+  const trustXForwardedFor = options?.trustXForwardedFor ?? parseBooleanEnv("TRUST_X_FORWARDED_FOR", true)
+  if (!trustXForwardedFor) {
     return null
+  }
+
+  const trustedProxyHops = parseTrustedProxyHops(options?.trustedProxyHops)
+  if (forwardedFor) {
+    const chain = forwardedFor
+      .split(",")
+      .map((part) => normalizeIp(part.trim()))
+      .filter((part): part is string => !!part)
+
+    if (chain.length > 0) {
+      const index = Math.max(0, chain.length - trustedProxyHops)
+      return chain[index] ?? null
+    }
+  }
+
+  return null
+}
+
+export function getClientIpFromHeaders(
+  headers: Headers,
+  ip: string | null = null,
+  options?: Omit<ClientIpOptions, "cfConnectingIp">
+): string | null {
+  return getClientIp(
+    ip,
+    headers.get("x-forwarded-for"),
+    headers.get("x-real-ip"),
+    {
+      ...options,
+      cfConnectingIp: headers.get("cf-connecting-ip"),
+    }
+  )
 }

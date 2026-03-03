@@ -37,7 +37,7 @@ export function isValidUrl(url: string): boolean {
         return false
       }
 
-      const [a, b, c] = parts
+      const [a, b] = parts
 
       // 阻止内网/私有 IP 地址
       if (

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, user } from "@/lib/schema"
 import { getLinkStatus } from "@/lib/link-status"
+import { parseBoundedInt } from "@/lib/http"
 import { desc, eq, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -14,8 +15,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const page = parseInt(searchParams.get("page") || "1", 10)
-  const pageSize = parseInt(searchParams.get("pageSize") || "50", 10)
+  const page = parseBoundedInt(searchParams.get("page"), 1, 1, 100000)
+  const pageSize = parseBoundedInt(searchParams.get("pageSize"), 50, 1, 200)
   const offset = (page - 1) * pageSize
 
   const [totalCount] = await db

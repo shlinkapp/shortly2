@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { getLinkStatus } from "@/lib/link-status"
+import { parseBoundedInt } from "@/lib/http"
 import { eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -14,8 +15,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1"))
-  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "10")))
+  const page = parseBoundedInt(searchParams.get("page"), 1, 1, 100000)
+  const limit = parseBoundedInt(searchParams.get("limit"), 10, 1, 100)
   const offset = (page - 1) * limit
 
   const [totalRes, links] = await Promise.all([

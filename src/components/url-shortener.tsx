@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
@@ -18,7 +17,6 @@ interface UrlShortenerProps {
 }
 
 export function UrlShortener({ user }: UrlShortenerProps) {
-  const router = useRouter()
   const [url, setUrl] = useState("")
   const [customSlug, setCustomSlug] = useState("")
   const [maxClicks, setMaxClicks] = useState<string>("")

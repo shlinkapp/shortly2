@@ -2,8 +2,38 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteSetting } from "@/lib/schema"
+import { normalizeBaseUrl } from "@/lib/http"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
+import { z } from "zod"
+
+const optionalPositiveInt = z.preprocess(
+  (value) => (value === null ? undefined : value),
+  z.number().int().min(1).max(100000).optional()
+)
+
+const settingsUpdateSchema = z.object({
+  siteName: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.string().trim().min(1).max(80).optional()
+  ),
+  siteUrl: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z
+      .string()
+      .trim()
+      .max(2000)
+      .refine((url) => url === "" || normalizeBaseUrl(url) !== null, "siteUrl must be a valid http(s) URL")
+      .optional()
+  ),
+  allowAnonymous: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.boolean().optional()
+  ),
+  anonMaxLinksPerHour: optionalPositiveInt,
+  anonMaxClicks: optionalPositiveInt,
+  userMaxLinksPerHour: optionalPositiveInt,
+})
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -27,8 +57,24 @@ export async function POST(req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const body = await req.json()
-  const { siteName, siteUrl, allowAnonymous, anonMaxLinksPerHour, anonMaxClicks, userMaxLinksPerHour } = body
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  const parsed = settingsUpdateSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid settings payload" }, { status: 400 })
+  }
+
+  const {
+    siteName,
+    siteUrl,
+    allowAnonymous,
+    anonMaxLinksPerHour,
+    anonMaxClicks,
+    userMaxLinksPerHour,
+  } = parsed.data
 
   await db
     .update(siteSetting)

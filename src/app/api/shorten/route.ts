@@ -6,8 +6,17 @@ import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
 import { getClientIp } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
+import { resolvePublicAppUrl } from "@/lib/http"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
+import { z } from "zod"
+
+const shortenRequestSchema = z.object({
+  url: z.string().min(1),
+  customSlug: z.string().trim().min(1).max(50).optional(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
+  maxClicks: z.number().int().positive().optional(),
+})
 
 export async function POST(req: NextRequest) {
   await initDb()
@@ -21,8 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })
   }
 
-  const body = await req.json()
-  const { url, customSlug, expiresAt, maxClicks } = body
+  const rawBody = await req.json().catch(() => null)
+  if (!rawBody || typeof rawBody !== "object") {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+  const parsedBody = shortenRequestSchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+  const { url, customSlug, expiresAt, maxClicks } = parsedBody.data
 
   if (!session && customSlug) {
     return NextResponse.json({ error: "Custom slugs are only available for logged-in users" }, { status: 403 })
@@ -87,16 +103,24 @@ export async function POST(req: NextRequest) {
   }
 
   const id = crypto.randomUUID()
-  await db.insert(shortLink).values({
-    id,
-    userId: session?.user?.id ?? null,
-    originalUrl: url,
-    slug,
-    clicks: 0,
-    creatorIp,
-    maxClicks: finalMaxClicks,
-    expiresAt: finalExpiresAt,
-  })
+  try {
+    await db.insert(shortLink).values({
+      id,
+      userId: session?.user?.id ?? null,
+      originalUrl: url,
+      slug,
+      clicks: 0,
+      creatorIp,
+      maxClicks: finalMaxClicks,
+      expiresAt: finalExpiresAt,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes("UNIQUE")) {
+      return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
+    }
+    throw error
+  }
 
   await createLinkLog({
     linkId: id,
@@ -109,6 +133,6 @@ export async function POST(req: NextRequest) {
     statusCode: 201,
   })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  const appUrl = resolvePublicAppUrl(settings?.siteUrl)
   return NextResponse.json({ shortUrl: `${appUrl}/${slug}`, slug, maxClicks: finalMaxClicks })
 }

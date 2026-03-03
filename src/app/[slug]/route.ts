@@ -4,7 +4,7 @@ import { shortLink } from "@/lib/schema"
 import { getClientIp } from "@/lib/ip"
 import { createLinkLog } from "@/lib/link-logs"
 import { getLinkStatus } from "@/lib/link-status"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 export async function GET(
   req: NextRequest,
@@ -70,17 +70,63 @@ export async function GET(
     )
   }
 
-  await Promise.all([
-    db
-      .update(shortLink)
-      .set({ clicks: sql`${shortLink.clicks} + 1` })
-      .where(eq(shortLink.id, link.id)),
-    createLinkLog({
-      ...logBase,
-      eventType: "redirect_success",
-      statusCode: 302,
-    })
-  ])
+  const now = new Date()
+  const updateResult = await db
+    .update(shortLink)
+    .set({ clicks: sql`${shortLink.clicks} + 1` })
+    .where(and(
+      eq(shortLink.id, link.id),
+      sql`(${shortLink.expiresAt} IS NULL OR ${shortLink.expiresAt} > ${now})`,
+      sql`(${shortLink.maxClicks} IS NULL OR ${shortLink.clicks} < ${shortLink.maxClicks})`
+    ))
+    .run()
+
+  if ((updateResult.rowsAffected ?? 0) < 1) {
+    const latest = await db.select().from(shortLink).where(eq(shortLink.id, link.id)).get()
+    if (!latest) {
+      return NextResponse.json({ error: "This link is no longer available." }, { status: 410 })
+    }
+
+    const latestStatus = getLinkStatus(latest)
+    if (latestStatus.expiredByDate) {
+      await createLinkLog({
+        ...logBase,
+        eventType: "redirect_blocked_expired",
+        statusCode: 410,
+      })
+      await db.delete(shortLink).where(eq(shortLink.id, latest.id))
+      await createLinkLog({
+        ...logBase,
+        eventType: "link_auto_deleted_expired",
+        statusCode: 410,
+      })
+      return NextResponse.json({ error: "This link has expired and has been removed." }, { status: 410 })
+    }
+
+    if (latestStatus.expiredByClicks) {
+      await createLinkLog({
+        ...logBase,
+        eventType: "redirect_blocked_max_clicks",
+        statusCode: 410,
+      })
+      await db.delete(shortLink).where(eq(shortLink.id, latest.id))
+      await createLinkLog({
+        ...logBase,
+        eventType: "link_auto_deleted_max_clicks",
+        statusCode: 410,
+      })
+      return NextResponse.json(
+        { error: "This link reached the click limit and has been removed." },
+        { status: 410 }
+      )
+    }
+  }
+
+  await createLinkLog({
+    ...logBase,
+    eventType: "redirect_success",
+    statusCode: 302,
+  })
 
   return NextResponse.redirect(link.originalUrl, { status: 302 })
 }

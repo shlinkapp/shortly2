@@ -5,8 +5,17 @@ import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
 import { getClientIp } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
+import { resolvePublicAppUrl } from "@/lib/http"
 import { and, eq } from "drizzle-orm"
 import { hashApiKey, isValidApiKeyFormat, parseApiKeyFromRequestHeaders } from "@/lib/api-keys"
+import { z } from "zod"
+
+const openApiShortenSchema = z.object({
+  url: z.string().min(1),
+  customSlug: z.string().trim().min(1).max(50).optional(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
+  maxClicks: z.number().int().positive().optional(),
+})
 
 export async function POST(req: NextRequest) {
   await initDb()
@@ -33,17 +42,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized: API key not found" }, { status: 401 })
   }
 
-  const body = await req.json().catch(() => null)
-  if (!body || typeof body !== "object") {
+  const rawBody = await req.json().catch(() => null)
+  if (!rawBody || typeof rawBody !== "object") {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
-
-  const { url, customSlug, expiresAt, maxClicks } = body as {
-    url?: string
-    customSlug?: string
-    expiresAt?: string
-    maxClicks?: number
+  const parsedBody = openApiShortenSchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
+
+  const { url, customSlug, expiresAt, maxClicks } = parsedBody.data
 
   if (!url || !isValidUrl(url)) {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 })
@@ -87,10 +95,6 @@ export async function POST(req: NextRequest) {
   let finalMaxClicks: number | null = null
   let finalExpiresAt: Date | null = null
 
-  const hasMaxClicks = maxClicks !== undefined && maxClicks !== null
-  if (hasMaxClicks && (typeof maxClicks !== "number" || !Number.isFinite(maxClicks) || maxClicks <= 0)) {
-    return NextResponse.json({ error: "maxClicks must be a positive number" }, { status: 400 })
-  }
   if (typeof maxClicks === "number" && maxClicks > 0) {
     finalMaxClicks = Math.floor(maxClicks)
   }
@@ -138,7 +142,7 @@ export async function POST(req: NextRequest) {
     statusCode: 201,
   })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  const appUrl = resolvePublicAppUrl(settings?.siteUrl)
   return NextResponse.json({
     shortUrl: `${appUrl}/${slug}`,
     slug,

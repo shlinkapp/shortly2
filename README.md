@@ -58,6 +58,7 @@ cp .env.example .env
 - 数据库连接（例如指向本地 SQLite 文件）
 - `BETTER_AUTH_SECRET`: 用于保护会话的随机字符串
 - `API_KEY_PEPPER`: （可选）用于 API Key 哈希加盐，建议生产环境配置
+- `BOOTSTRAP_ADMIN_EMAILS`: （可选）逗号分隔邮箱列表，匹配的注册用户会自动获得 `admin` 权限
 - `NEXT_PUBLIC_APP_URL`: 应用程序的前台 URL (如 `http://localhost:3000`)
 - `RESEND_API_KEY`: 选填，用于开启邮件验证码登录
 - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: 选填，用于开启 GitHub 授权登录
@@ -84,7 +85,7 @@ bun run dev
 1. **匿名使用**：任何人均可直接访问首页，将长链接粘贴至输入框进行缩短。由于风控机制，匿名创建的短链将会受限（不可设置自定义后缀，并且默认为较少的有效点击次数）。
 2. **账号注册与管理**：
     - 点击右上角的 "登录 / 注册" 体验完整的后台。
-    - 首个在系统内注册的用户（在部分逻辑场景中）或手动通过数据库提权的账号将成为 `admin`。
+    - 如需自动授予管理员，请在环境变量中配置 `BOOTSTRAP_ADMIN_EMAILS`（支持逗号分隔多个邮箱）；未配置时不会自动提权。
     - 登录后可以自由地设置链接有效时间、访问阈值和专有短链后缀。
 
 ## 📜 许可协议
