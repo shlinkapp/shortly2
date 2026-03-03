@@ -4,6 +4,7 @@ import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { createLinkLog } from "@/lib/link-logs"
 import { getClientIpFromHeaders } from "@/lib/ip"
+import { isRequestOriginAllowed } from "@/lib/http"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -16,6 +17,9 @@ export async function DELETE(
   const session = await auth.api.getSession({ headers: headersList })
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!isRequestOriginAllowed(headersList)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
   const { id } = await params

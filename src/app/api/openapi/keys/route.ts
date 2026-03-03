@@ -5,6 +5,7 @@ import { apiKey } from "@/lib/schema"
 import { eq, desc } from "drizzle-orm"
 import { headers } from "next/headers"
 import { generateApiKey, hashApiKey } from "@/lib/api-keys"
+import { isRequestOriginAllowed } from "@/lib/http"
 
 async function requireUserSession() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!isRequestOriginAllowed(req.headers)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
   const body = await req.json().catch(() => ({}))

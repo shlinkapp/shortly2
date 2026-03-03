@@ -2,6 +2,17 @@ function isHttpProtocol(protocol: string): boolean {
   return protocol === "http:" || protocol === "https:"
 }
 
+function toOrigin(value: string | null | undefined): string | null {
+  const normalized = normalizeBaseUrl(value)
+  if (!normalized) return null
+
+  try {
+    return new URL(normalized).origin
+  } catch {
+    return null
+  }
+}
+
 export function normalizeBaseUrl(value: string | null | undefined): string | null {
   if (!value) return null
 
@@ -25,6 +36,25 @@ export function resolvePublicAppUrl(siteUrl?: string | null): string {
     normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ??
     "http://localhost:3000"
   )
+}
+
+export function isRequestOriginAllowed(headers: Headers, siteUrl?: string | null): boolean {
+  const requestOrigin = toOrigin(headers.get("origin"))
+  if (!requestOrigin) {
+    return true
+  }
+
+  const candidates = [
+    toOrigin(siteUrl),
+    toOrigin(process.env.NEXT_PUBLIC_APP_URL),
+    toOrigin(process.env.BETTER_AUTH_URL),
+  ].filter((origin): origin is string => !!origin)
+
+  if (candidates.length < 1) {
+    return true
+  }
+
+  return candidates.includes(requestOrigin)
 }
 
 export function parseBoundedInt(

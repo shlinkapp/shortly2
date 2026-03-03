@@ -6,7 +6,7 @@ import { generateSlug, isValidSlug, isValidUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
-import { resolvePublicAppUrl } from "@/lib/http"
+import { isRequestOriginAllowed, resolvePublicAppUrl } from "@/lib/http"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -25,6 +25,10 @@ export async function POST(req: NextRequest) {
 
   const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
   const allowAnonymous = settings?.allowAnonymous ?? true
+
+  if (!isRequestOriginAllowed(headersList, settings?.siteUrl)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
+  }
 
   if (!allowAnonymous && !session) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })

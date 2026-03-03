@@ -4,6 +4,7 @@ import { db, initDb } from "@/lib/db"
 import { apiKey } from "@/lib/schema"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
+import { isRequestOriginAllowed } from "@/lib/http"
 
 async function requireUserSession() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -12,13 +13,16 @@ async function requireUserSession() {
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await initDb()
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!isRequestOriginAllowed(req.headers)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
   const { id } = await params

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { createLinkLog } from "@/lib/link-logs"
 import { getClientIpFromHeaders } from "@/lib/ip"
+import { isRequestOriginAllowed } from "@/lib/http"
 
 export async function DELETE(
   _req: NextRequest,
@@ -16,6 +17,9 @@ export async function DELETE(
   const session = await auth.api.getSession({ headers: headersList })
   if (!session || (session.user as { role?: string }).role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+  if (!isRequestOriginAllowed(headersList)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
   const { id } = await params

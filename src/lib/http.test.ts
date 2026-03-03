@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { normalizeBaseUrl, parseBoundedInt } from "./http"
+import { isRequestOriginAllowed, normalizeBaseUrl, parseBoundedInt } from "./http"
 
 describe("parseBoundedInt", () => {
   it("falls back when value is invalid", () => {
@@ -23,5 +23,37 @@ describe("normalizeBaseUrl", () => {
   it("rejects unsupported protocols and malformed values", () => {
     expect(normalizeBaseUrl("javascript:alert(1)")).toBeNull()
     expect(normalizeBaseUrl("not-a-url")).toBeNull()
+  })
+})
+
+describe("isRequestOriginAllowed", () => {
+  it("allows requests without origin header", () => {
+    const headers = new Headers()
+    expect(isRequestOriginAllowed(headers, "https://short.ly")).toBe(true)
+  })
+
+  it("allows same-origin requests", () => {
+    const headers = new Headers({ origin: "https://short.ly" })
+    expect(isRequestOriginAllowed(headers, "https://short.ly")).toBe(true)
+  })
+
+  it("blocks cross-origin requests when known origins exist", () => {
+    const headers = new Headers({ origin: "https://evil.example" })
+    expect(isRequestOriginAllowed(headers, "https://short.ly")).toBe(false)
+  })
+
+  it("falls back to env origins", () => {
+    const oldNextPublic = process.env.NEXT_PUBLIC_APP_URL
+    process.env.NEXT_PUBLIC_APP_URL = "https://short.ly"
+    try {
+      const headers = new Headers({ origin: "https://short.ly" })
+      expect(isRequestOriginAllowed(headers)).toBe(true)
+    } finally {
+      if (oldNextPublic === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_URL
+      } else {
+        process.env.NEXT_PUBLIC_APP_URL = oldNextPublic
+      }
+    }
   })
 })

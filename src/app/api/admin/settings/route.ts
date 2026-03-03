@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteSetting } from "@/lib/schema"
-import { normalizeBaseUrl } from "@/lib/http"
+import { isRequestOriginAllowed, normalizeBaseUrl } from "@/lib/http"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -56,6 +56,9 @@ export async function POST(req: NextRequest) {
   await initDb()
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!isRequestOriginAllowed(req.headers)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== "object") {
