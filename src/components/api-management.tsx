@@ -301,10 +301,13 @@ export function ApiManagementPanel() {
     "url": "https://example.com/long-page",
     "customSlug": "my-custom-slug",
     "maxClicks": 100,
-    "expiresAt": "2026-12-31T23:59:59.000Z"
+    "expiresIn": "1m"
   }'`}
               </pre>
             </div>
+            <p className="text-xs text-muted-foreground">
+              `expiresIn` 可选值：`1h`, `1d`, `1w`, `1m`, `3m`, `6m`, `1y`。
+            </p>
             <div className="space-y-1">
               <p className="text-sm font-medium">成功响应</p>
               <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">

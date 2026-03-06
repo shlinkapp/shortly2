@@ -7,6 +7,7 @@ import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
 import { isRequestOriginAllowed, isSelfShortenTarget, resolvePublicAppUrl } from "@/lib/http"
+import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -14,7 +15,7 @@ import { z } from "zod"
 const shortenRequestSchema = z.object({
   url: z.string().min(1),
   customSlug: z.string().trim().min(1).max(50).optional(),
-  expiresAt: z.string().datetime({ offset: true }).optional(),
+  expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
   maxClicks: z.number().int().positive().optional(),
 })
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!parsedBody.success) {
     return NextResponse.json({ error: "无效的请求主体" }, { status: 400 })
   }
-  const { url, customSlug, expiresAt, maxClicks } = parsedBody.data
+  const { url, customSlug, expiresIn, maxClicks } = parsedBody.data
 
   if (!session && customSlug) {
     return NextResponse.json({ error: "自定义后缀仅对登录用户开放" }, { status: 403 })
@@ -106,11 +107,8 @@ export async function POST(req: NextRequest) {
     if (maxClicks && typeof maxClicks === "number" && maxClicks > 0) {
       finalMaxClicks = maxClicks
     }
-    if (expiresAt) {
-      const parsedDate = new Date(expiresAt)
-      if (!isNaN(parsedDate.getTime())) {
-        finalExpiresAt = parsedDate
-      }
+    if (expiresIn) {
+      finalExpiresAt = resolveShortLinkExpiresAt(expiresIn)
     }
   }
 

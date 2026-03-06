@@ -15,11 +15,11 @@ Shortly 是一个现代化、轻量级且功能强大的开源短链接生成系
   - **管理后台**：管理员支持统筹管理系统中所有的链接与用户，并可以动态调节全局站点设置和风控策略。
 - **🔌 OpenAPI 短链能力**：
   - 支持通过 `Bearer API Key` 调用 `POST /v1/shorten` 创建短链。
-  - 支持 `customSlug`、`maxClicks`、`expiresAt` 参数。
+  - 支持 `customSlug`、`maxClicks`、`expiresIn` 参数。
   - 可直接生成并导入 ShareX `.sxcu` 配置文件。
 - **🛡️ 灵活的风控与限流**：
   - **匿名用户**：支持限制其每小时生成限制（基于 IP 频率限制）以及最大访问次数，支持由后台动态调整配置（例如限制为只允许被点击访问 10 次）。
-  - **已登录用户**：享有更高的生成配额，并支持设置**自定义后缀**、**过期时间 (有效期)** 以及**最大访问次数**。
+  - **已登录用户**：享有更高的生成配额，并支持设置**自定义后缀**、**有效期时长**以及**最大访问次数**。
 - **🎨 精美 UI**：基于 Tailwind CSS v4 与 shadcn/ui 构建，支持深色模式。
 - **💾 轻量级数据库**：使用 Drizzle ORM，搭配 SQLite / libSQL，支持轻松部署。
 
@@ -38,7 +38,7 @@ Shortly 是一个现代化、轻量级且功能强大的开源短链接生成系
 
 ### 1. 克隆项目 & 安装依赖
 
-请确保您的环境中已安装了 `bun`（本项目要求严格使用 `bun` 作为包管理器）。
+本项目建议使用 `bun` 作为包管理器。
 
 ```bash
 git clone https://github.com/yourusername/shortly2.git
@@ -62,7 +62,7 @@ cp .env.example .env
 - `TRUST_X_FORWARDED_FOR`: （可选）是否信任 `X-Forwarded-For`，默认 `true`
 - `TRUST_PROXY_HOPS`: （可选）受信代理跳数，默认 `1`，用于从 `X-Forwarded-For` 反推客户端 IP
 - `NEXT_PUBLIC_APP_URL`: 应用程序的前台 URL (如 `http://localhost:3000`)
-- `RESEND_API_KEY`: 选填，用于开启邮件验证码登录
+- `RESEND_API_KEY`: 选填，用于开启邮件验证码登录（建议与 Github 至少配置一种）
 - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: 选填，用于开启 GitHub 授权登录
 
 ### 3. 初始化数据库

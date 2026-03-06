@@ -8,12 +8,13 @@ import { createLinkLog } from "@/lib/link-logs"
 import { isSelfShortenTarget, resolvePublicAppUrl } from "@/lib/http"
 import { and, eq } from "drizzle-orm"
 import { hashApiKey, isValidApiKeyFormat, parseApiKeyFromRequestHeaders } from "@/lib/api-keys"
+import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
 import { z } from "zod"
 
 const openApiShortenSchema = z.object({
   url: z.string().min(1),
   customSlug: z.string().trim().min(1).max(50).optional(),
-  expiresAt: z.string().datetime({ offset: true }).optional(),
+  expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
   maxClicks: z.number().int().positive().optional(),
 })
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
-  const { url, customSlug, expiresAt, maxClicks } = parsedBody.data
+  const { url, customSlug, expiresIn, maxClicks } = parsedBody.data
 
   if (!url) {
     return NextResponse.json({ error: "链接无效：链接不能为空" }, { status: 400 })
@@ -106,11 +107,8 @@ export async function POST(req: NextRequest) {
   if (typeof maxClicks === "number" && maxClicks > 0) {
     finalMaxClicks = Math.floor(maxClicks)
   }
-  if (expiresAt) {
-    const parsed = new Date(expiresAt)
-    if (!Number.isNaN(parsed.getTime())) {
-      finalExpiresAt = parsed
-    }
+  if (expiresIn) {
+    finalExpiresAt = resolveShortLinkExpiresAt(expiresIn)
   }
 
   const id = crypto.randomUUID()

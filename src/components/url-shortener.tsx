@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SHORT_LINK_EXPIRES_IN_OPTIONS, type ShortLinkExpiresIn } from "@/lib/short-link-expiration"
 import { toast } from "sonner"
 import { Scissors, Copy, ExternalLink, LogIn, X } from "lucide-react"
 import Link from "next/link"
@@ -20,7 +22,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
   const [url, setUrl] = useState("")
   const [customSlug, setCustomSlug] = useState("")
   const [maxClicks, setMaxClicks] = useState<string>("")
-  const [expiresAt, setExpiresAt] = useState<string>("")
+  const [expiresIn, setExpiresIn] = useState<ShortLinkExpiresIn | "none">("none")
   const [showOptions, setShowOptions] = useState(false)
   const [result, setResult] = useState<{ shortUrl: string; slug: string; maxClicks?: number } | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -41,7 +43,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
             url: url.trim(),
             customSlug: customSlug.trim() || undefined,
             maxClicks: maxClicks ? parseInt(maxClicks) : undefined,
-            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined
+            expiresIn: expiresIn === "none" ? undefined : expiresIn
           }),
         })
         const data = await res.json()
@@ -67,7 +69,7 @@ export function UrlShortener({ user }: UrlShortenerProps) {
     setUrl("")
     setCustomSlug("")
     setMaxClicks("")
-    setExpiresAt("")
+    setExpiresIn("none")
     setShowOptions(false)
     setResult(null)
   }
@@ -111,13 +113,22 @@ export function UrlShortener({ user }: UrlShortenerProps) {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Input
-                  type="datetime-local"
-                  placeholder="过期时间（可选）"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  className="h-10 text-muted-foreground"
-                />
+                <Select
+                  value={expiresIn}
+                  onValueChange={(value) => setExpiresIn(value as ShortLinkExpiresIn | "none")}
+                >
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不设置有效期</SelectItem>
+                    {SHORT_LINK_EXPIRES_IN_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
