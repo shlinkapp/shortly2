@@ -14,7 +14,7 @@ Shortly 是一个现代化、轻量级且功能强大的开源短链接生成系
   - **API 管理面板**：在用户后台提供 API Key 管理、OpenAPI 调用说明、ShareX 配置文件下载。
   - **管理后台**：管理员支持统筹管理系统中所有的链接与用户，并可以动态调节全局站点设置和风控策略。
 - **🔌 OpenAPI 短链能力**：
-  - 支持通过 `Bearer API Key` 调用 `POST /api/openapi/shorten` 创建短链。
+  - 支持通过 `Bearer API Key` 调用 `POST /v1/shorten` 创建短链。
   - 支持 `customSlug`、`maxClicks`、`expiresAt` 参数。
   - 可直接生成并导入 ShareX `.sxcu` 配置文件。
 - **🛡️ 灵活的风控与限流**：

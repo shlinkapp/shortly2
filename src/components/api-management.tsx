@@ -57,7 +57,7 @@ export function ApiManagementPanel() {
   const fetchKeys = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/openapi/keys")
+      const res = await fetch("/v1/keys")
       if (!res.ok) {
         toast.error("加载 API Key 失败")
         return
@@ -85,7 +85,7 @@ export function ApiManagementPanel() {
   }, [])
 
   const sharexConfig = useMemo(() => {
-    const endpoint = `${apiBaseUrl}/api/openapi/shorten`
+    const endpoint = `${apiBaseUrl}/v1/shorten`
     return JSON.stringify({
       Version: "17.0.0",
       Name: "Shortly URL Shortener",
@@ -106,7 +106,7 @@ export function ApiManagementPanel() {
   async function handleCreateKey() {
     setCreating(true)
     try {
-      const res = await fetch("/api/openapi/keys", {
+      const res = await fetch("/v1/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,7 +138,7 @@ export function ApiManagementPanel() {
   async function handleDeleteKey(id: string) {
     setDeletingKeyId(id)
     try {
-      const res = await fetch(`/api/openapi/keys/${id}`, { method: "DELETE" })
+      const res = await fetch(`/v1/keys/${id}`, { method: "DELETE" })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         toast.error(body?.error || "删除 API Key 失败")
@@ -288,13 +288,13 @@ export function ApiManagementPanel() {
             <div className="space-y-1">
                 <p className="text-sm font-medium">接口地址</p>
               <code className="block rounded-md bg-muted p-2 text-xs">
-                POST {apiBaseUrl || "https://your-domain.com"}/api/openapi/shorten
+                POST {apiBaseUrl || "https://your-domain.com"}/v1/shorten
               </code>
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">请求示例</p>
               <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/api/openapi/shorten' \\
+{`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/v1/shorten' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -d '{
