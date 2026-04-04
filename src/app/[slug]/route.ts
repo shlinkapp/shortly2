@@ -4,6 +4,7 @@ import { shortLink } from "@/lib/schema"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { createLinkLog } from "@/lib/link-logs"
 import { getLinkStatus } from "@/lib/link-status"
+import { getAllowedShortDomain } from "@/lib/site-domains"
 import { and, eq, sql } from "drizzle-orm"
 
 export async function GET(
@@ -12,7 +13,18 @@ export async function GET(
 ) {
   await initDb()
   const { slug } = await params
-  const link = await db.select().from(shortLink).where(eq(shortLink.slug, slug)).get()
+  const requestHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host")
+  const shortDomain = await getAllowedShortDomain(requestHost)
+
+  if (!shortDomain) {
+    return NextResponse.redirect(new URL("/", req.url))
+  }
+
+  const link = await db
+    .select()
+    .from(shortLink)
+    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
+    .get()
 
   if (!link) {
     return NextResponse.redirect(new URL("/", req.url))

@@ -6,15 +6,17 @@ import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
-import { isRequestOriginAllowed, isSelfShortenTarget, resolvePublicAppUrl } from "@/lib/http"
+import { buildShortUrl, isRequestOriginAllowed, isSelfShortenTarget } from "@/lib/http"
 import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
-import { eq } from "drizzle-orm"
+import { getAllowedShortDomain } from "@/lib/site-domains"
+import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
 
 const shortenRequestSchema = z.object({
   url: z.string().min(1),
   customSlug: z.string().trim().min(1).max(50).optional(),
+  domain: z.string().trim().min(1).max(255).optional(),
   expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
   maxClicks: z.number().int().positive().optional(),
 })
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!parsedBody.success) {
     return NextResponse.json({ error: "无效的请求主体" }, { status: 400 })
   }
-  const { url, customSlug, expiresIn, maxClicks } = parsedBody.data
+  const { url, customSlug, domain, expiresIn, maxClicks } = parsedBody.data
 
   if (!session && customSlug) {
     return NextResponse.json({ error: "自定义后缀仅对登录用户开放" }, { status: 403 })
@@ -58,7 +60,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `链接无效：${urlValidation.reason}` }, { status: 400 })
   }
 
-  if (isSelfShortenTarget(url, headersList, settings?.siteUrl)) {
+  const shortDomain = await getAllowedShortDomain(domain)
+  if (!shortDomain) {
+    return NextResponse.json({ error: "未找到可用的短链域名" }, { status: 400 })
+  }
+
+  if (isSelfShortenTarget(url, headersList, `https://${shortDomain.host}`)) {
     return NextResponse.json(
       { error: "链接无效：该链接包含本站域名，为避免循环跳转不允许缩短。" },
       { status: 400 }
@@ -74,12 +81,15 @@ export async function POST(req: NextRequest) {
 
   const slug = customSlug || generateSlug()
 
-  const existing = await db.select().from(shortLink).where(eq(shortLink.slug, slug)).get()
+  const existing = await db
+    .select()
+    .from(shortLink)
+    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
+    .get()
   if (existing) {
     return NextResponse.json({ error: "自定义后缀已被占用" }, { status: 409 })
   }
 
-  // --- Rate Limiting Logic ---
   const creatorIp = getClientIpFromHeaders(headersList)
 
   const rateLimitResponse = await checkRateLimit({
@@ -96,7 +106,6 @@ export async function POST(req: NextRequest) {
       { status: rateLimitResponse.status }
     )
   }
-  // --- Rate Limiting Logic End ---
 
   let finalMaxClicks = null
   let finalExpiresAt = null
@@ -119,6 +128,7 @@ export async function POST(req: NextRequest) {
       userId: session?.user?.id ?? null,
       originalUrl: url,
       slug,
+      domain: shortDomain.host,
       clicks: 0,
       creatorIp,
       maxClicks: finalMaxClicks,
@@ -143,6 +153,10 @@ export async function POST(req: NextRequest) {
     statusCode: 201,
   })
 
-  const appUrl = resolvePublicAppUrl(settings?.siteUrl)
-  return NextResponse.json({ shortUrl: `${appUrl}/${slug}`, slug, maxClicks: finalMaxClicks })
+  return NextResponse.json({
+    shortUrl: buildShortUrl(shortDomain.host, slug),
+    slug,
+    domain: shortDomain.host,
+    maxClicks: finalMaxClicks,
+  })
 }

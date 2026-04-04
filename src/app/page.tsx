@@ -24,7 +24,12 @@ export default async function HomePage() {
     <main className="relative flex min-h-screen flex-col px-4 py-16">
       <div className="absolute top-4 right-4">
         {user ? (
-          <UserMenu user={user} />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard?tab=temp-email">临时邮箱</Link>
+            </Button>
+            <UserMenu user={user} />
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>

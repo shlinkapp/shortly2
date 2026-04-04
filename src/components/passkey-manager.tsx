@@ -24,7 +24,8 @@ export function PasskeyManager() {
                 name: `${navigator.platform} - ${new Date().toLocaleDateString()}`,
             })
             if (res?.error) {
-                toast.error(res.error.message || "无法保存 Passkey")
+                const message = typeof res.error.message === "string" ? res.error.message : "无法保存 Passkey"
+                toast.error(message)
             } else {
                 toast.success("Passkey 已成功保存")
                 refetch()
@@ -44,7 +45,8 @@ export function PasskeyManager() {
                 id,
             })
             if (res?.error) {
-                toast.error(res.error.message || "删除失败")
+                const message = typeof res.error.message === "string" ? res.error.message : "删除失败"
+                toast.error(message)
             } else {
                 toast.success("Passkey 已删除")
                 refetch()

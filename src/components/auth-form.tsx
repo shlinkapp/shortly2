@@ -84,7 +84,8 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.signIn.passkey()
       if (res?.error) {
-        toast.error(res.error.message)
+        const message = typeof res.error.message === "string" ? res.error.message : "Passkey 登录失败"
+        toast.error(message)
       } else {
         toast.success("登录成功")
         finish()
@@ -99,7 +100,8 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.passkey.addPasskey()
       if (res?.error) {
-        toast.error(res.error.message || "无法保存 Passkey")
+        const message = typeof res.error.message === "string" ? res.error.message : "无法保存 Passkey"
+        toast.error(message)
       } else {
         toast.success("Passkey 已保存 — 您现在可以使用它立即登录")
       }

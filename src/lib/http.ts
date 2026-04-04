@@ -62,6 +62,11 @@ export function resolvePublicAppUrl(siteUrl?: string | null): string {
   )
 }
 
+export function buildShortUrl(host: string, slug: string): string {
+  const normalizedHost = host.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "")
+  return `https://${normalizedHost}/${slug}`
+}
+
 export function isRequestOriginAllowed(headers: Headers, siteUrl?: string | null): boolean {
   const requestOrigin = toOrigin(headers.get("origin"))
   if (!requestOrigin) {

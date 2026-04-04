@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, initDb } from "@/lib/db"
-import { apiKey, shortLink, siteSetting } from "@/lib/schema"
+import { shortLink, siteSetting } from "@/lib/schema"
 import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { createLinkLog } from "@/lib/link-logs"
-import { isSelfShortenTarget, resolvePublicAppUrl } from "@/lib/http"
-import { and, eq } from "drizzle-orm"
-import { hashApiKey, isValidApiKeyFormat, parseApiKeyFromRequestHeaders } from "@/lib/api-keys"
+import { buildShortUrl, isSelfShortenTarget } from "@/lib/http"
 import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
 import { z } from "zod"
+import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { getAllowedShortDomain } from "@/lib/site-domains"
+import { and, eq } from "drizzle-orm"
 
 const openApiShortenSchema = z.object({
   url: z.string().min(1),
   customSlug: z.string().trim().min(1).max(50).optional(),
+  domain: z.string().trim().min(1).max(255).optional(),
   expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
   maxClicks: z.number().int().positive().optional(),
 })
@@ -21,28 +23,12 @@ const openApiShortenSchema = z.object({
 export async function POST(req: NextRequest) {
   await initDb()
 
-  const rawApiKey = parseApiKeyFromRequestHeaders(req.headers)
-  if (!rawApiKey || !isValidApiKeyFormat(rawApiKey)) {
-    return NextResponse.json(
-      { error: "Unauthorized: missing or invalid API key format" },
-      { status: 401 }
-    )
+  const authResult = await requireApiKeyUser(req.headers)
+  if ("error" in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: 401 })
   }
 
-  const hashedKey = await hashApiKey(rawApiKey)
-  const keyRecord = await db
-    .select({
-      id: apiKey.id,
-      userId: apiKey.userId,
-    })
-    .from(apiKey)
-    .where(eq(apiKey.keyHash, hashedKey))
-    .get()
-
-  if (!keyRecord) {
-    return NextResponse.json({ error: "Unauthorized: API key not found" }, { status: 401 })
-  }
-
+  const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
   const rawBody = await req.json().catch(() => null)
   if (!rawBody || typeof rawBody !== "object") {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
@@ -52,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
-  const { url, customSlug, expiresIn, maxClicks } = parsedBody.data
+  const { url, customSlug, domain, expiresIn, maxClicks } = parsedBody.data
 
   if (!url) {
     return NextResponse.json({ error: "链接无效：链接不能为空" }, { status: 400 })
@@ -63,7 +49,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `链接无效：${urlValidation.reason}` }, { status: 400 })
   }
 
-  if (isSelfShortenTarget(url, req.headers)) {
+  const shortDomain = await getAllowedShortDomain(domain)
+  if (!shortDomain) {
+    return NextResponse.json({ error: "No enabled short-link domain is available" }, { status: 400 })
+  }
+
+  if (isSelfShortenTarget(url, req.headers, `https://${shortDomain.host}`)) {
     return NextResponse.json(
       { error: "链接无效：该链接包含本站域名（NEXT_PUBLIC_APP_URL 或当前 Host），为避免循环跳转不允许缩短。" },
       { status: 400 }
@@ -79,17 +70,20 @@ export async function POST(req: NextRequest) {
 
   const slug = customSlug || generateSlug()
 
-  const existingSlug = await db.select({ id: shortLink.id }).from(shortLink).where(eq(shortLink.slug, slug)).get()
+  const existingSlug = await db
+    .select({ id: shortLink.id })
+    .from(shortLink)
+    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
+    .get()
   if (existingSlug) {
     return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
   }
 
-  const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
   const creatorIp = getClientIpFromHeaders(req.headers)
   const rateLimitResult = await checkRateLimit({
     ip: creatorIp,
-    userId: keyRecord.userId,
-    allowAnonymous: true,
+    userId: authResult.data.userId,
+    allowAnonymous: settings?.allowAnonymous ?? true,
     anonLimit: settings?.anonMaxLinksPerHour ?? 3,
     userLimit: settings?.userMaxLinksPerHour ?? 50,
   })
@@ -116,9 +110,10 @@ export async function POST(req: NextRequest) {
   try {
     await db.insert(shortLink).values({
       id,
-      userId: keyRecord.userId,
+      userId: authResult.data.userId,
       originalUrl: url,
       slug,
+      domain: shortDomain.host,
       clicks: 0,
       creatorIp,
       maxClicks: finalMaxClicks,
@@ -132,15 +127,12 @@ export async function POST(req: NextRequest) {
     throw error
   }
 
-  await db
-    .update(apiKey)
-    .set({ lastUsedAt: new Date() })
-    .where(and(eq(apiKey.id, keyRecord.id), eq(apiKey.userId, keyRecord.userId)))
+  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
 
   await createLinkLog({
     linkId: id,
     linkSlug: slug,
-    ownerUserId: keyRecord.userId,
+    ownerUserId: authResult.data.userId,
     eventType: "link_created_api",
     referrer: req.headers.get("referer"),
     userAgent: req.headers.get("user-agent"),
@@ -148,10 +140,10 @@ export async function POST(req: NextRequest) {
     statusCode: 201,
   })
 
-  const appUrl = resolvePublicAppUrl(settings?.siteUrl)
   return NextResponse.json({
-    shortUrl: `${appUrl}/${slug}`,
+    shortUrl: buildShortUrl(shortDomain.host, slug),
     slug,
+    domain: shortDomain.host,
     maxClicks: finalMaxClicks,
   }, { status: 201 })
 }

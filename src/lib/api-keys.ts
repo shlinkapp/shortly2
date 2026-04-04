@@ -37,6 +37,11 @@ export function parseApiKeyFromRequestHeaders(headers: Headers): string | null {
     return apiKeyHeader.trim()
   }
 
+  const workerApiKeyHeader = headers.get("wrdo-api-key")
+  if (workerApiKeyHeader?.trim()) {
+    return workerApiKeyHeader.trim()
+  }
+
   return null
 }
 

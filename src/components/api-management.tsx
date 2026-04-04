@@ -41,6 +41,17 @@ interface ApiKeysResponse {
   data: ApiKeyRecord[]
 }
 
+interface DomainsResponse {
+  emailDomains: Array<{
+    host: string
+    isDefault: boolean
+  }>
+  shortDomains: Array<{
+    host: string
+    isDefault: boolean
+  }>
+}
+
 function maskPrefix(prefix: string): string {
   return `${prefix}****************`
 }
@@ -53,6 +64,8 @@ export function ApiManagementPanel() {
   const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null)
   const [latestPlainKey, setLatestPlainKey] = useState<string | null>(null)
   const [sharexApiKey, setSharexApiKey] = useState("")
+  const [emailDomains, setEmailDomains] = useState<string[]>([])
+  const [shortDomains, setShortDomains] = useState<string[]>([])
 
   const fetchKeys = useCallback(async () => {
     setLoading(true)
@@ -71,9 +84,23 @@ export function ApiManagementPanel() {
     }
   }, [])
 
+  const fetchDomains = useCallback(async () => {
+    try {
+      const res = await fetch("/api/domains")
+      if (!res.ok) {
+        return
+      }
+      const body = await res.json() as DomainsResponse
+      setEmailDomains((body.emailDomains || []).map((item) => item.host))
+      setShortDomains((body.shortDomains || []).map((item) => item.host))
+    } catch {
+    }
+  }, [])
+
   useEffect(() => {
     fetchKeys()
-  }, [fetchKeys])
+    fetchDomains()
+  }, [fetchDomains, fetchKeys])
 
   const apiBaseUrl = useMemo(() => {
     const envBase = process.env.NEXT_PUBLIC_APP_URL?.trim()
@@ -277,23 +304,24 @@ export function ApiManagementPanel() {
       </TabsContent>
 
       <TabsContent value="docs">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">OpenAPI：短链创建</CardTitle>
-            <CardDescription>
-              使用 `Authorization: Bearer YOUR_API_KEY` 调用接口。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">OpenAPI：短链创建</CardTitle>
+              <CardDescription>
+                使用 `Authorization: Bearer YOUR_API_KEY` 调用接口。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
                 <p className="text-sm font-medium">接口地址</p>
-              <code className="block rounded-md bg-muted p-2 text-xs">
-                POST {apiBaseUrl || "https://your-domain.com"}/v1/shorten
-              </code>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">请求示例</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  POST {apiBaseUrl || "https://your-domain.com"}/v1/shorten
+                </code>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">请求示例</p>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
 {`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/v1/shorten' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
@@ -303,23 +331,124 @@ export function ApiManagementPanel() {
     "maxClicks": 100,
     "expiresIn": "1m"
   }'`}
-              </pre>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              `expiresIn` 可选值：`1h`, `1d`, `1w`, `1m`, `3m`, `6m`, `1y`。
-            </p>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">成功响应</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+                </pre>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                `expiresIn` 可选值：`1h`, `1d`, `1w`, `1m`, `3m`, `6m`, `1y`。
+              </p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">成功响应</p>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
 {`{
   "shortUrl": "${apiBaseUrl || "https://your-domain.com"}/abcxyz",
   "slug": "abcxyz",
   "maxClicks": 100
 }`}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">OpenAPI：临时邮箱</CardTitle>
+              <CardDescription>
+                同样使用 `Authorization: Bearer YOUR_API_KEY`，以下接口均位于 `/v1/emails`。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">1. 创建邮箱</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  POST {apiBaseUrl || "https://your-domain.com"}/v1/emails
+                </code>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+{`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/v1/emails' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer YOUR_API_KEY' \\
+  -d '{
+    "emailAddress": "demo@example.com"
+  }'`}
+                </pre>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium">2. 获取邮箱列表</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  GET {apiBaseUrl || "https://your-domain.com"}/v1/emails?page=1&limit=20
+                </code>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+{`{
+  "data": [
+    {
+      "id": "mailbox_id",
+      "emailAddress": "demo@example.com",
+      "domain": "example.com",
+      "createdAt": 1712000000,
+      "unreadCount": 2,
+      "messageCount": 5
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}`}
+                </pre>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium">3. 获取某邮箱邮件</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  GET {apiBaseUrl || "https://your-domain.com"}/v1/emails/MAILBOX_ID/messages?page=1&limit=20
+                </code>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium">4. 标记邮件已读</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  POST {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID/read
+                </code>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium">5. 删除邮件</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  DELETE {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID
+                </code>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium">域名查询</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">
+                  GET {apiBaseUrl || "https://your-domain.com"}/v1/domains
+                </code>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+{`{
+  "emailDomains": [
+    {
+      "host": "mail.example.com",
+      "isDefault": true
+    }
+  ],
+  "shortDomains": [
+    {
+      "host": "s.example.com",
+      "isDefault": true
+    }
+  ]
+}`}
+                </pre>
+                <p className="text-xs text-muted-foreground">
+                  当前可用临时邮箱域名：{emailDomains.length > 0 ? emailDomains.join(", ") : "加载后显示"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  当前可用短链域名：{shortDomains.length > 0 ? shortDomains.join(", ") : "加载后显示"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
 
       <TabsContent value="sharex">

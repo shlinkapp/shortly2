@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { getLinkStatus } from "@/lib/link-status"
-import { parseBoundedInt } from "@/lib/http"
+import { buildShortUrl, parseBoundedInt } from "@/lib/http"
 import { eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
 
   const data = links.map((link) => ({
     ...link,
+    shortUrl: buildShortUrl(link.domain, link.slug),
     ...getLinkStatus(link),
   }))
 
