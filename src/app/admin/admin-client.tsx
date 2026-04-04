@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -27,6 +29,7 @@ import {
 import { toast } from "sonner"
 import { Trash2, ExternalLink, ArrowLeft, Save, Shield, BarChart2, Pencil, Plus, Mail, Inbox, Archive } from "lucide-react"
 import Link from "next/link"
+import { useMediaQuery } from "@/lib/use-media-query"
 
 interface AdminLink {
   id: string
@@ -164,6 +167,7 @@ const initialDomainForm: DomainFormState = {
 }
 
 export function AdminClient({ user }: AdminClientProps) {
+  const [activeTab, setActiveTab] = useState("links")
   const [links, setLinks] = useState<AdminLink[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [domains, setDomains] = useState<SiteDomain[]>([])
@@ -171,6 +175,8 @@ export function AdminClient({ user }: AdminClientProps) {
   const [messages, setMessages] = useState<AdminMailboxMessage[]>([])
   const [archives, setArchives] = useState<ArchivedInboundEmail[]>([])
   const [emailSearch, setEmailSearch] = useState("")
+  const [loadingEmailData, setLoadingEmailData] = useState(false)
+  const [emailDataLoaded, setEmailDataLoaded] = useState(false)
   const [settings, setSettings] = useState<SiteSettings>({
     siteName: "Shortly",
     siteUrl: "http://localhost:3000",
@@ -184,8 +190,11 @@ export function AdminClient({ user }: AdminClientProps) {
   const [savingDomain, setSavingDomain] = useState(false)
   const [logsDialogOpen, setLogsDialogOpen] = useState(false)
   const [domainDialogOpen, setDomainDialogOpen] = useState(false)
+  const [pendingDeleteLink, setPendingDeleteLink] = useState<AdminLink | null>(null)
+  const [pendingDeleteDomain, setPendingDeleteDomain] = useState<SiteDomain | null>(null)
   const [selectedLink, setSelectedLink] = useState<AdminLink | null>(null)
   const [editingDomain, setEditingDomain] = useState<SiteDomain | null>(null)
+  const isDesktop = useMediaQuery("(min-width: 768px)")
   const [domainForm, setDomainForm] = useState<DomainFormState>(initialDomainForm)
   const [logs, setLogs] = useState<LinkLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
@@ -239,6 +248,7 @@ export function AdminClient({ user }: AdminClientProps) {
   }, [fetchData])
 
   const fetchEmailData = useCallback(async (search?: string) => {
+    setLoadingEmailData(true)
     try {
       const query = search?.trim() ? `?page=1&limit=50&search=${encodeURIComponent(search.trim())}` : "?page=1&limit=50"
       const [mailboxesRes, messagesRes, archivesRes] = await Promise.all([
@@ -259,14 +269,19 @@ export function AdminClient({ user }: AdminClientProps) {
         const body = await archivesRes.json() as PaginatedResponse<ArchivedInboundEmail>
         setArchives(body.data || [])
       }
+      setEmailDataLoaded(true)
     } catch {
       toast.error("加载临时邮箱数据失败")
+    } finally {
+      setLoadingEmailData(false)
     }
   }, [])
 
   useEffect(() => {
-    void fetchEmailData()
-  }, [fetchEmailData])
+    if (activeTab === "emails" && !emailDataLoaded && !loadingEmailData) {
+      void fetchEmailData()
+    }
+  }, [activeTab, emailDataLoaded, loadingEmailData, fetchEmailData])
 
   function getEmailPreview(text: string, html: string) {
     return (text || html || "").replace(/\s+/g, " ").trim() || "无正文"
@@ -302,23 +317,25 @@ export function AdminClient({ user }: AdminClientProps) {
   async function handleDeleteLink(id: string) {
     const res = await fetch(`/api/admin/links/${id}`, { method: "DELETE" })
     if (res.ok) {
-      toast.success("Link deleted")
+      toast.success("短链已删除")
       setLinks((prev) => prev.filter((l) => l.id !== id))
+      setPendingDeleteLink(null)
     } else {
-      toast.error("Failed to delete link")
+      toast.error("删除短链失败")
     }
   }
 
   async function handleDeleteDomain(domain: SiteDomain) {
     const res = await fetch(`/api/admin/domains/${domain.id}`, { method: "DELETE" })
     if (res.ok) {
-      toast.success("Domain deleted")
+      toast.success("域名已删除")
       setDomains((prev) => prev.filter((item) => item.id !== domain.id))
+      setPendingDeleteDomain(null)
       return
     }
 
     const body = await res.json().catch(() => null)
-    toast.error(body?.error || "Failed to delete domain")
+    toast.error(body?.error || "删除域名失败")
   }
 
   async function handleViewLogs(link: AdminLink) {
@@ -347,9 +364,9 @@ export function AdminClient({ user }: AdminClientProps) {
         body: JSON.stringify(settings),
       })
       if (res.ok) {
-        toast.success("Settings saved")
+        toast.success("设置已保存")
       } else {
-        toast.error("Failed to save settings")
+        toast.error("保存设置失败")
       }
     } finally {
       setSavingSettings(false)
@@ -369,7 +386,7 @@ export function AdminClient({ user }: AdminClientProps) {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        toast.error(body?.error || "Failed to save domain")
+        toast.error(body?.error || "保存域名失败")
         return
       }
 
@@ -383,7 +400,7 @@ export function AdminClient({ user }: AdminClientProps) {
         }
         return [...prev, saved].sort((a, b) => a.host.localeCompare(b.host))
       })
-      toast.success(editingDomain ? "Domain updated" : "Domain created")
+      toast.success(editingDomain ? "域名已更新" : "域名已创建")
       setDomainDialogOpen(false)
       resetDomainForm()
     } finally {
@@ -400,7 +417,7 @@ export function AdminClient({ user }: AdminClientProps) {
       <header className="border-b">
         <div className="mx-auto max-w-5xl flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/" aria-label="返回首页" className="text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <div className="flex items-center gap-2">
@@ -413,20 +430,24 @@ export function AdminClient({ user }: AdminClientProps) {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-        <Tabs defaultValue="links">
-          <TabsList className="mb-6">
-            <TabsTrigger value="links">链接 ({links.length})</TabsTrigger>
-            <TabsTrigger value="users">用户 ({users.length})</TabsTrigger>
-            <TabsTrigger value="emails">临时邮箱</TabsTrigger>
-            <TabsTrigger value="settings">设置</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6 grid h-auto grid-cols-2 gap-2 rounded-lg bg-muted p-1 lg:grid-cols-4">
+            <TabsTrigger value="links" className="w-full">链接 ({links.length})</TabsTrigger>
+            <TabsTrigger value="users" className="w-full">用户 ({users.length})</TabsTrigger>
+            <TabsTrigger value="emails" className="w-full">临时邮箱</TabsTrigger>
+            <TabsTrigger value="settings" className="w-full">设置</TabsTrigger>
           </TabsList>
 
           <TabsContent value="links">
             {loading ? (
-              <div className="text-center text-muted-foreground py-16">加载中...</div>
+              <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+                正在加载短链...
+              </div>
             ) : links.length === 0 ? (
-              <div className="text-center text-muted-foreground py-16">暂无链接</div>
-            ) : (
+              <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+                暂无链接记录。
+              </div>
+            ) : isDesktop ? (
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
                   <TableHeader>
@@ -456,13 +477,14 @@ export function AdminClient({ user }: AdminClientProps) {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-muted-foreground hover:text-foreground shrink-0"
+                              aria-label={`打开原链接 ${link.originalUrl}`}
                             >
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
-                          {link.userEmail || <span className="italic">Anonymous</span>}
+                          {link.userEmail || <span className="italic">匿名用户</span>}
                         </TableCell>
                         <TableCell className="text-center hidden sm:table-cell">
                           <Badge variant="secondary">{link.clicks}</Badge>
@@ -491,19 +513,20 @@ export function AdminClient({ user }: AdminClientProps) {
                           <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon-sm"
                               onClick={() => handleViewLogs(link)}
-                              className="h-8 w-8 p-0"
-                              title="View logs"
+                              title="查看日志"
+                              aria-label={`查看短链 /${link.slug} 的日志`}
                             >
                               <BarChart2 className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteLink(link.id)}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              title="Delete"
+                              size="icon-sm"
+                              onClick={() => setPendingDeleteLink(link)}
+                              className="text-destructive hover:text-destructive"
+                              title="删除短链"
+                              aria-label={`删除短链 /${link.slug}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -514,15 +537,81 @@ export function AdminClient({ user }: AdminClientProps) {
                   </TableBody>
                 </Table>
               </div>
+            ) : (
+              <div className="space-y-3">
+                {links.map((link) => (
+                  <div key={link.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm">/{link.slug}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {link.userEmail || "匿名用户"}
+                        </p>
+                      </div>
+                      <Badge variant={link.isExpired ? "destructive" : "secondary"}>
+                        {link.isExpired ? "已失效" : "有效"}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">目标链接</p>
+                        <div className="flex items-center gap-1">
+                          <span className="truncate text-muted-foreground">{link.originalUrl}</span>
+                          <a
+                            href={link.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                            aria-label={`打开原链接 ${link.originalUrl}`}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">点击 {link.clicks}</Badge>
+                        <Badge variant="outline">
+                          {link.hasClickLimit ? `限制 ${link.clicks}/${link.maxClicks ?? "—"}` : "不限点击"}
+                        </Badge>
+                        <Badge variant="outline">
+                          {link.hasExpiration ? `到期 ${formatDate(link.expiresAt)}` : "长期有效"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">创建于 {formatDate(link.createdAt)}</p>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleViewLogs(link)}>
+                        <BarChart2 className="h-4 w-4" />
+                        查看日志
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setPendingDeleteLink(link)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        删除短链
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </TabsContent>
 
           <TabsContent value="users">
             {loading ? (
-              <div className="text-center text-muted-foreground py-16">加载中...</div>
+              <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+                正在加载用户列表...
+              </div>
             ) : users.length === 0 ? (
-              <div className="text-center text-muted-foreground py-16">暂无用户</div>
-            ) : (
+              <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+                暂无用户记录。
+              </div>
+            ) : isDesktop ? (
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
                   <TableHeader>
@@ -557,225 +646,336 @@ export function AdminClient({ user }: AdminClientProps) {
                   </TableBody>
                 </Table>
               </div>
+            ) : (
+              <div className="space-y-3">
+                {users.map((u) => (
+                  <div key={u.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{u.name}</p>
+                        <p className="truncate text-sm text-muted-foreground">{u.email}</p>
+                      </div>
+                      <Badge variant={u.role === "admin" ? "default" : "secondary"}>
+                        {u.role}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">链接 {u.linkCount}</Badge>
+                      <Badge variant="outline">加入于 {formatDate(u.createdAt)}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </TabsContent>
 
           <TabsContent value="emails">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle>临时邮箱总览</CardTitle>
-                    <CardDescription>查看所有邮箱、正常入箱邮件和未匹配收件归档。</CardDescription>
-                  </div>
-                  <div className="flex w-full gap-2 sm:w-auto">
-                    <Input
-                      placeholder="搜索邮箱、用户、主题、发件人"
-                      value={emailSearch}
-                      onChange={(e) => setEmailSearch(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          void fetchEmailData(emailSearch)
-                        }
-                      }}
-                      className="sm:w-72"
-                    />
-                    <Button variant="outline" onClick={() => void fetchEmailData(emailSearch)}>
-                      搜索
-                    </Button>
-                  </div>
-                </CardHeader>
-              </Card>
-
-              <div className="grid gap-6 xl:grid-cols-1">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Mail className="h-4 w-4" />
-                      邮箱列表 ({mailboxes.length})
-                    </CardTitle>
-                    <CardDescription>全部已创建的临时邮箱。</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {mailboxes.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-muted-foreground">暂无邮箱</div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="min-w-[180px]">邮箱</TableHead>
-                              <TableHead className="min-w-[140px]">归属用户</TableHead>
-                              <TableHead className="w-20">状态</TableHead>
-                              <TableHead className="w-24 text-center">统计</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {mailboxes.map((mailbox) => (
-                              <TableRow key={mailbox.id}>
-                                <TableCell>
-                                  <div className="min-w-0">
-                                    <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
-                                    <p className="text-xs text-muted-foreground">{formatDate(mailbox.createdAt)}</p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="min-w-0 text-sm">
-                                    <p className="truncate">{getMailboxOwnerLabel(mailbox)}</p>
-                                    {mailbox.userEmail && (
-                                      <p className="truncate text-xs text-muted-foreground">{mailbox.userEmail}</p>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={mailbox.isActive ? "secondary" : "outline"}>
-                                    {mailbox.isActive ? "启用" : "停用"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <div className="space-y-1 text-xs text-muted-foreground">
-                                    <div>{mailbox.messageCount} 封</div>
-                                    <div>{mailbox.unreadCount} 未读</div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Inbox className="h-4 w-4" />
-                      正常邮件 ({messages.length})
-                    </CardTitle>
-                    <CardDescription>已匹配到用户邮箱的入站邮件。</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {messages.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-muted-foreground">暂无邮件</div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="min-w-[180px]">收件邮箱</TableHead>
-                              <TableHead className="min-w-[180px]">发件人 / 主题</TableHead>
-                              <TableHead className="w-20">状态</TableHead>
-                              <TableHead className="hidden xl:table-cell">时间</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {messages.map((message) => (
-                              <TableRow key={message.id}>
-                                <TableCell>
-                                  <div className="min-w-0 text-sm">
-                                    <p className="truncate font-mono">{message.mailboxEmailAddress}</p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {getMailboxOwnerLabel(message)}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="max-w-[280px]">
-                                    <p className="truncate text-sm font-medium">
-                                      {message.fromName || message.from}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {message.subject || "(无主题)"}
-                                    </p>
-                                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                                      {getEmailPreview(message.text, message.html)}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-wrap gap-2">
-                                    <Badge variant={message.isRead ? "outline" : "secondary"}>
-                                      {message.isRead ? "已读" : "未读"}
-                                    </Badge>
-                                    {message.hasAttachments && <Badge variant="outline">附件</Badge>}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
-                                  {formatDate(message.receivedAt)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Archive className="h-4 w-4" />
-                      归档邮件 ({archives.length})
-                    </CardTitle>
-                    <CardDescription>未匹配邮箱的入站邮件归档。</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {archives.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-muted-foreground">暂无归档邮件</div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="min-w-[180px]">目标邮箱</TableHead>
-                              <TableHead className="min-w-[180px]">发件人 / 主题</TableHead>
-                              <TableHead className="w-24">原因</TableHead>
-                              <TableHead className="hidden xl:table-cell">时间</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {archives.map((archive) => (
-                              <TableRow key={archive.id}>
-                                <TableCell>
-                                  <div className="min-w-0 text-sm">
-                                    <p className="truncate font-mono">{archive.toEmail}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="max-w-[280px]">
-                                    <p className="truncate text-sm font-medium">
-                                      {archive.fromName || archive.from}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {archive.subject || "(无主题)"}
-                                    </p>
-                                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                                      {getEmailPreview(archive.text, archive.html)}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-wrap gap-2">
-                                    <Badge variant="destructive">{archive.failureReason}</Badge>
-                                    {archive.hasAttachments && <Badge variant="outline">附件</Badge>}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
-                                  {formatDate(archive.receivedAt)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+            {loadingEmailData && !emailDataLoaded ? (
+              <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
+                正在加载临时邮箱数据...
               </div>
-            </div>
+            ) : (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>临时邮箱总览</CardTitle>
+                      <CardDescription>查看所有邮箱、已收到的邮件，以及未匹配到邮箱的归档邮件。</CardDescription>
+                    </div>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                      <Input
+                        aria-label="搜索邮箱、用户、主题、发件人"
+                        placeholder="搜索邮箱、用户、主题、发件人"
+                        value={emailSearch}
+                        onChange={(e) => setEmailSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            void fetchEmailData(emailSearch)
+                          }
+                        }}
+                        className="w-full sm:w-72"
+                      />
+                      <Button variant="outline" onClick={() => void fetchEmailData(emailSearch)} className="w-full sm:w-auto">
+                        搜索
+                      </Button>
+                    </div>
+                  </CardHeader>
+                </Card>
+
+                <div className="grid gap-6 xl:grid-cols-1">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Mail className="h-4 w-4" />
+                        邮箱列表 ({mailboxes.length})
+                      </CardTitle>
+                      <CardDescription>这里会显示所有已创建的临时邮箱。</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {mailboxes.length === 0 ? (
+                        <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+                          暂无邮箱。
+                        </div>
+                      ) : isDesktop ? (
+                        <div className="overflow-x-auto rounded-lg border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="min-w-[180px]">邮箱</TableHead>
+                                <TableHead className="min-w-[140px]">归属用户</TableHead>
+                                <TableHead className="w-20">状态</TableHead>
+                                <TableHead className="w-24 text-center">统计</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {mailboxes.map((mailbox) => (
+                                <TableRow key={mailbox.id}>
+                                  <TableCell>
+                                    <div className="min-w-0">
+                                      <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
+                                      <p className="text-xs text-muted-foreground">{formatDate(mailbox.createdAt)}</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="min-w-0 text-sm">
+                                      <p className="truncate">{getMailboxOwnerLabel(mailbox)}</p>
+                                      {mailbox.userEmail && (
+                                        <p className="truncate text-xs text-muted-foreground">{mailbox.userEmail}</p>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={mailbox.isActive ? "secondary" : "outline"}>
+                                      {mailbox.isActive ? "启用" : "停用"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <div>{mailbox.messageCount} 封</div>
+                                      <div>{mailbox.unreadCount} 未读</div>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {mailboxes.map((mailbox) => (
+                            <div key={mailbox.id} className="rounded-lg border p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">{formatDate(mailbox.createdAt)}</p>
+                                </div>
+                                <Badge variant={mailbox.isActive ? "secondary" : "outline"}>
+                                  {mailbox.isActive ? "启用" : "停用"}
+                                </Badge>
+                              </div>
+                              <div className="mt-3 space-y-1 text-sm">
+                                <p className="truncate">{getMailboxOwnerLabel(mailbox)}</p>
+                                {mailbox.userEmail && (
+                                  <p className="truncate text-xs text-muted-foreground">{mailbox.userEmail}</p>
+                                )}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">{mailbox.messageCount} 封</Badge>
+                                <Badge variant="outline">{mailbox.unreadCount} 未读</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Inbox className="h-4 w-4" />
+                        正常邮件 ({messages.length})
+                      </CardTitle>
+                      <CardDescription>这里显示已成功投递到用户邮箱的邮件。</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {messages.length === 0 ? (
+                        <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+                          暂无邮件。
+                        </div>
+                      ) : isDesktop ? (
+                        <div className="overflow-x-auto rounded-lg border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="min-w-[180px]">收件邮箱</TableHead>
+                                <TableHead className="min-w-[180px]">发件人 / 主题</TableHead>
+                                <TableHead className="w-20">状态</TableHead>
+                                <TableHead className="hidden xl:table-cell">时间</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {messages.map((message) => (
+                                <TableRow key={message.id}>
+                                  <TableCell>
+                                    <div className="min-w-0 text-sm">
+                                      <p className="truncate font-mono">{message.mailboxEmailAddress}</p>
+                                      <p className="truncate text-xs text-muted-foreground">
+                                        {getMailboxOwnerLabel(message)}
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="max-w-[280px]">
+                                      <p className="truncate text-sm font-medium">
+                                        {message.fromName || message.from}
+                                      </p>
+                                      <p className="truncate text-xs text-muted-foreground">
+                                        {message.subject || "(无主题)"}
+                                      </p>
+                                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                                        {getEmailPreview(message.text, message.html)}
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge variant={message.isRead ? "outline" : "secondary"}>
+                                        {message.isRead ? "已读" : "未读"}
+                                      </Badge>
+                                      {message.hasAttachments && <Badge variant="outline">附件</Badge>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                                    {formatDate(message.receivedAt)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {messages.map((message) => (
+                            <div key={message.id} className="rounded-lg border p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate font-mono text-sm">{message.mailboxEmailAddress}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{getMailboxOwnerLabel(message)}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant={message.isRead ? "outline" : "secondary"}>
+                                    {message.isRead ? "已读" : "未读"}
+                                  </Badge>
+                                  {message.hasAttachments && <Badge variant="outline">附件</Badge>}
+                                </div>
+                              </div>
+                              <div className="mt-3 max-w-full">
+                                <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
+                                <p className="truncate text-xs text-muted-foreground">{message.subject || "(无主题)"}</p>
+                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                  {getEmailPreview(message.text, message.html)}
+                                </p>
+                                <p className="mt-2 text-xs text-muted-foreground">{formatDate(message.receivedAt)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Archive className="h-4 w-4" />
+                        归档邮件 ({archives.length})
+                      </CardTitle>
+                      <CardDescription>这里显示未匹配到邮箱的邮件及其归档原因。</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {archives.length === 0 ? (
+                        <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+                          暂无归档邮件。
+                        </div>
+                      ) : isDesktop ? (
+                        <div className="overflow-x-auto rounded-lg border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="min-w-[180px]">目标邮箱</TableHead>
+                                <TableHead className="min-w-[180px]">发件人 / 主题</TableHead>
+                                <TableHead className="w-24">原因</TableHead>
+                                <TableHead className="hidden xl:table-cell">时间</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {archives.map((archive) => (
+                                <TableRow key={archive.id}>
+                                  <TableCell>
+                                    <div className="min-w-0 text-sm">
+                                      <p className="truncate font-mono">{archive.toEmail}</p>
+                                      <p className="truncate text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="max-w-[280px]">
+                                      <p className="truncate text-sm font-medium">
+                                        {archive.fromName || archive.from}
+                                      </p>
+                                      <p className="truncate text-xs text-muted-foreground">
+                                        {archive.subject || "(无主题)"}
+                                      </p>
+                                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                                        {getEmailPreview(archive.text, archive.html)}
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge variant="destructive">{archive.failureReason}</Badge>
+                                      {archive.hasAttachments && <Badge variant="outline">附件</Badge>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                                    {formatDate(archive.receivedAt)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {archives.map((archive) => (
+                            <div key={archive.id} className="rounded-lg border p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate font-mono text-sm">{archive.toEmail}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant="destructive">{archive.failureReason}</Badge>
+                                  {archive.hasAttachments && <Badge variant="outline">附件</Badge>}
+                                </div>
+                              </div>
+                              <div className="mt-3 max-w-full">
+                                <p className="truncate text-sm font-medium">{archive.fromName || archive.from}</p>
+                                <p className="truncate text-xs text-muted-foreground">{archive.subject || "(无主题)"}</p>
+                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                  {getEmailPreview(archive.text, archive.html)}
+                                </p>
+                                <p className="mt-2 text-xs text-muted-foreground">{formatDate(archive.receivedAt)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="settings">
@@ -795,7 +995,7 @@ export function AdminClient({ user }: AdminClientProps) {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="siteUrl">Site URL</Label>
+                    <Label htmlFor="siteUrl">站点地址</Label>
                     <Input
                       id="siteUrl"
                       type="url"
@@ -832,7 +1032,7 @@ export function AdminClient({ user }: AdminClientProps) {
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          How many links an unauthenticated IP can generate per hour.
+                          控制匿名访问者每小时最多可创建多少条短链。
                         </p>
                       </div>
                       <div className="flex flex-col gap-1.5">
@@ -850,7 +1050,7 @@ export function AdminClient({ user }: AdminClientProps) {
                           }
                         />
                         <p className="text-xs text-muted-foreground">
-                          How many times an anonymously generated link can be clicked before expiring.
+                          控制匿名创建的短链在失效前最多允许多少次访问。
                         </p>
                       </div>
                     </>
@@ -870,7 +1070,7 @@ export function AdminClient({ user }: AdminClientProps) {
                       }
                     />
                     <p className="text-xs text-muted-foreground">
-                      How many links a logged-in user can generate per hour.
+                      控制登录用户每小时最多可创建多少条短链。
                     </p>
                   </div>
                   <Button onClick={handleSaveSettings} disabled={savingSettings} className="w-fit mt-2">
@@ -881,21 +1081,25 @@ export function AdminClient({ user }: AdminClientProps) {
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle>域名配置</CardTitle>
                     <CardDescription>管理短链接与临时邮箱可用域名</CardDescription>
                   </div>
-                  <Button onClick={openCreateDomainDialog} size="sm">
+                  <Button onClick={openCreateDomainDialog} size="sm" className="w-full sm:w-auto">
                     <Plus className="h-4 w-4" />
                     新增域名
                   </Button>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <div className="text-center text-muted-foreground py-12">加载中...</div>
+                    <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+                      正在加载域名配置...
+                    </div>
                   ) : domains.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-12">暂无域名</div>
+                    <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+                      暂无域名配置。
+                    </div>
                   ) : (
                     <div className="overflow-x-auto rounded-lg border">
                       <Table>
@@ -943,19 +1147,20 @@ export function AdminClient({ user }: AdminClientProps) {
                                 <div className="flex items-center justify-end gap-1">
                                   <Button
                                     variant="ghost"
-                                    size="sm"
+                                    size="icon-sm"
                                     onClick={() => openEditDomainDialog(domain)}
-                                    className="h-8 w-8 p-0"
-                                    title="Edit"
+                                    title="编辑域名"
+                                    aria-label={`编辑域名 ${domain.host}`}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                   <Button
                                     variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteDomain(domain)}
-                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                    title="Delete"
+                                    size="icon-sm"
+                                    onClick={() => setPendingDeleteDomain(domain)}
+                                    className="text-destructive hover:text-destructive"
+                                    title="删除域名"
+                                    aria-label={`删除域名 ${domain.host}`}
                                     disabled={domain.isDefaultShortDomain || domain.isDefaultEmailDomain}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -1069,7 +1274,7 @@ export function AdminClient({ user }: AdminClientProps) {
             <div className="py-8 text-center text-muted-foreground">加载中...</div>
           ) : logs.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">暂无日志</div>
-          ) : (
+          ) : isDesktop ? (
             <div className="max-h-80 overflow-y-auto overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1097,7 +1302,7 @@ export function AdminClient({ user }: AdminClientProps) {
                         {log.statusCode ?? "—"}
                       </TableCell>
                       <TableCell className="text-sm max-w-[160px] truncate">
-                        {log.referrer || <span className="text-muted-foreground">Direct</span>}
+                        {log.referrer || <span className="text-muted-foreground">直接访问</span>}
                       </TableCell>
                       <TableCell className="text-sm max-w-[160px] truncate text-muted-foreground hidden md:table-cell">
                         {log.ipAddress || "—"}
@@ -1110,7 +1315,78 @@ export function AdminClient({ user }: AdminClientProps) {
                 </TableBody>
               </Table>
             </div>
-          )}
+          ) : (
+            <div className="space-y-3">
+              {logs.map((log) => (
+                <div key={log.id} className="rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <Badge variant={getLogBadgeVariant(log.eventType)}>
+                      {getLogEventLabel(log.eventType)}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</span>
+                  </div>
+                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                    <p>状态码：{log.statusCode ?? "—"}</p>
+                    <p className="truncate">来源：{log.referrer || "直接访问"}</p>
+                    <p className="truncate">IP：{log.ipAddress || "—"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pendingDeleteLink} onOpenChange={(open) => !open && setPendingDeleteLink(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除短链？</DialogTitle>
+            <DialogDescription>
+              删除后将无法恢复。
+              {pendingDeleteLink && (
+                <span className="mt-2 block font-mono text-xs text-muted-foreground">
+                  /{pendingDeleteLink.slug}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteLink(null)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => pendingDeleteLink && handleDeleteLink(pendingDeleteLink.id)}
+            >
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pendingDeleteDomain} onOpenChange={(open) => !open && setPendingDeleteDomain(null)}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除域名？</DialogTitle>
+            <DialogDescription>
+              删除后将无法恢复。
+              {pendingDeleteDomain && (
+                <span className="mt-2 block font-mono text-xs text-muted-foreground">
+                  {pendingDeleteDomain.host}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteDomain(null)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => pendingDeleteDomain && handleDeleteDomain(pendingDeleteDomain)}
+            >
+              确认删除
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

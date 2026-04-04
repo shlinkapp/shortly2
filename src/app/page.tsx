@@ -25,7 +25,7 @@ export default async function HomePage() {
       <div className="absolute top-4 right-4">
         {user ? (
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="ghost" size="sm" asChild>
               <Link href="/dashboard?tab=temp-email">临时邮箱</Link>
             </Button>
             <UserMenu user={user} />

@@ -114,3 +114,31 @@ The README documents the main env vars. The ones that affect behavior most are:
 - Prefer updating shared logic in `src/lib/**` when changing behavior that exists in both browser and OpenAPI flows.
 - If you change pagination or response shapes for dashboard/admin endpoints, check both the route handlers and the corresponding client components.
 - This repo currently has no checked-in `.cursor/rules/`, `.cursorrules`, `.github/copilot-instructions.md`, or existing `CLAUDE.md` to merge guidance from.
+
+## Design Context
+
+### Users
+
+- Shortly is a public SaaS-style product for external users who need to shorten, share, and manage links quickly with minimal friction.
+- The product also includes richer signed-in workflows for dashboard management, temporary email, API keys, and admin controls, so the UI should support both one-off utility and trustworthy account-based usage.
+
+### Brand Personality
+
+- Calm, professional, trustworthy.
+- The interface should feel efficient and credible rather than playful or flashy.
+
+### Aesthetic Direction
+
+- Light mode first.
+- Keep the current restrained, neutral shadcn-based direction with Geist typography, subtle borders, low-saturation surfaces, and clean hierarchy.
+- Avoid bright or neon hues, crypto/startup-hype aesthetics, and glossy generic AI-template styling.
+
+### Design Principles
+
+- Prioritize clarity over novelty — primary actions, status, and link data should read instantly.
+- Build trust through restraint — use neutral color, disciplined spacing, and predictable patterns instead of visual hype.
+- Keep flows lightweight — creation, copying, review, and admin tasks should feel fast and low-friction.
+- Design for operational readability — tables, badges, dialogs, and empty states should support scanning and decision-making.
+- Use motion sparingly — prefer subtle transitions and avoid effects that add noise or discomfort.
+- Reduced motion matters — do not rely on animation-heavy interactions.
+- Avoid generic AI aesthetics — prefer product polish over trend-driven decoration.

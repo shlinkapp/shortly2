@@ -43,7 +43,7 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
         toast.error(res.error.message)
       } else {
         setStep("otp")
-        toast.success("Verification code sent")
+        toast.success("验证码已发送")
       }
     } finally {
       setLoading(false)
@@ -61,7 +61,7 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
         if (mode === "register" && supportsPasskey) {
           setStep("add-passkey")
         } else {
-          toast.success("Signed in")
+          toast.success("登录成功")
           finish()
         }
       }
@@ -205,7 +205,7 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
         <div className="relative my-1">
           <Separator />
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
-            or
+            或
           </span>
         </div>
       )}

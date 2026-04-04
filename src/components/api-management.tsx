@@ -181,9 +181,13 @@ export function ApiManagementPanel() {
     }
   }
 
-  function handleCopy(text: string, message = "已复制") {
-    navigator.clipboard.writeText(text)
-    toast.success(message)
+  async function handleCopy(text: string, message = "已复制") {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(message)
+    } catch {
+      toast.error("复制失败，请手动复制")
+    }
   }
 
   function handleDownloadShareXConfig() {
@@ -211,7 +215,7 @@ export function ApiManagementPanel() {
               <KeyRound className="h-4 w-4" />
               新增 API Key
             </CardTitle>
-            <CardDescription>生成后仅展示一次完整 Key，请立即保存。</CardDescription>
+            <CardDescription>完整 Key 只会显示一次。创建后请立即复制并妥善保存。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -227,7 +231,7 @@ export function ApiManagementPanel() {
             </div>
             {latestPlainKey && (
               <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground mb-1">请立即复制，之后无法再次查看完整 Key：</p>
+                <p className="mb-1 text-xs text-muted-foreground">请现在复制并保存；关闭后将无法再次查看完整 Key。</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 overflow-x-auto text-xs">{latestPlainKey}</code>
                   <Button
@@ -247,7 +251,7 @@ export function ApiManagementPanel() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">现有 API Key</CardTitle>
-            <CardDescription>仅显示前缀用于识别，删除后立即失效。</CardDescription>
+            <CardDescription>这里只显示 Key 前缀供你识别；删除后会立即失效。</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -456,7 +460,7 @@ export function ApiManagementPanel() {
           <CardHeader>
             <CardTitle className="text-base">ShareX 配置文件（.sxcu）</CardTitle>
             <CardDescription>
-              粘贴 API Key 后下载配置文件，导入 ShareX 即可上传后自动返回短链。
+              粘贴 API Key 后下载配置文件，导入 ShareX 后即可在上传完成时自动返回短链。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

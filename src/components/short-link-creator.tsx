@@ -47,7 +47,7 @@ export function ShortLinkCreator({
   onCreated,
   showContainer = false,
   title = "创建短链",
-  description = "支持选择短链域名、自定义后缀、访问次数限制和有效期。",
+  description = "粘贴长链接后即可生成短链；登录后还能选择域名、自定义后缀和访问规则。",
   showLoginHint = true,
 }: ShortLinkCreatorProps) {
   const [url, setUrl] = useState("")
@@ -137,10 +137,14 @@ export function ShortLinkCreator({
     })
   }
 
-  function handleCopy() {
+  async function handleCopy() {
     if (!result) return
-    navigator.clipboard.writeText(result.shortUrl)
-    toast.success("短链已复制")
+    try {
+      await navigator.clipboard.writeText(result.shortUrl)
+      toast.success("短链已复制")
+    } catch {
+      toast.error("复制失败，请手动复制")
+    }
   }
 
   function handleReset() {
@@ -156,6 +160,7 @@ export function ShortLinkCreator({
     <div className={`flex w-full flex-col gap-4 ${showContainer ? "max-w-none" : "max-w-2xl"}`}>
       <div className="space-y-2">
         <Input
+          id="short-link-url"
           type="url"
           placeholder="粘贴需要缩短的长链接"
           value={url}
@@ -174,9 +179,9 @@ export function ShortLinkCreator({
             <>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">短链域名</p>
+                  <label htmlFor="short-link-domain" className="text-sm font-medium">短链域名</label>
                   <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={domainsLoading || shortDomains.length < 1}>
-                    <SelectTrigger className="h-10 w-full bg-background">
+                    <SelectTrigger id="short-link-domain" aria-label="短链域名" className="h-10 w-full bg-background">
                       <SelectValue placeholder={domainsLoading ? "加载短链域名中..." : "选择短链域名"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -189,8 +194,9 @@ export function ShortLinkCreator({
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">自定义后缀</p>
+                  <label htmlFor="short-link-custom-slug" className="text-sm font-medium">自定义后缀</label>
                   <Input
+                    id="short-link-custom-slug"
                     placeholder="例如：summer-sale"
                     value={customSlug}
                     onChange={(e) => setCustomSlug(e.target.value)}
@@ -202,8 +208,9 @@ export function ShortLinkCreator({
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">最大点击次数</p>
+                  <label htmlFor="short-link-max-clicks" className="text-sm font-medium">最大点击次数</label>
                   <Input
+                    id="short-link-max-clicks"
                     type="number"
                     placeholder="不填则不限制"
                     value={maxClicks}
@@ -213,12 +220,12 @@ export function ShortLinkCreator({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">有效期</p>
+                  <label htmlFor="short-link-expires-in" className="text-sm font-medium">有效期</label>
                   <Select
                     value={expiresIn}
                     onValueChange={(value) => setExpiresIn(value as ShortLinkExpiresIn | "none")}
                   >
-                    <SelectTrigger className="h-10 w-full bg-background">
+                    <SelectTrigger id="short-link-expires-in" aria-label="有效期" className="h-10 w-full bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -234,8 +241,8 @@ export function ShortLinkCreator({
               </div>
             </>
           ) : (
-            <div className="rounded-lg border border-dashed bg-background px-4 py-3 text-sm text-muted-foreground">
-              登录后可选择短链域名、自定义后缀，并移除匿名短链的访问限制。
+            <div className="rounded-lg border border-dashed bg-background px-4 py-3 text-sm text-center text-muted-foreground">
+              登录后可获取个性化短链接、临时邮箱等高级功能。
             </div>
           )}
 
@@ -253,7 +260,7 @@ export function ShortLinkCreator({
                 <Button variant="outline" asChild className="h-10 shrink-0">
                   <Link href="/login">
                     <LogIn className="h-4 w-4" />
-                    登录后解锁更多配置
+                    登录后使用更多选项
                   </Link>
                 </Button>
               )}
@@ -271,7 +278,7 @@ export function ShortLinkCreator({
               <div>
                 <p className="text-sm font-medium">短链已创建</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  你现在可以复制短链、打开查看，或继续创建新的短链。
+                  现在可以复制短链、打开测试，或继续创建下一条。
                 </p>
               </div>
               <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 px-3 py-3 sm:flex-row sm:items-center">
@@ -313,9 +320,9 @@ export function ShortLinkCreator({
       {!user && !showOptions && showLoginHint && (
         <p className="text-center text-sm text-muted-foreground">
           <Link href="/login" className="font-medium text-foreground hover:underline">
-            登录 Shortly
+            登录
           </Link>{" "}
-          后可选择短链域名、自定义后缀并解除相关限制
+          后可获取个性化短链接、临时邮箱等高级功能。
         </p>
       )}
     </div>

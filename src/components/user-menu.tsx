@@ -35,7 +35,7 @@ export function UserMenu({ user }: UserMenuProps) {
 
   async function handleSignOut() {
     await authClient.signOut()
-    toast.success("Signed out")
+    toast.success("已退出登录")
     router.push("/")
     router.refresh()
   }

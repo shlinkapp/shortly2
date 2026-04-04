@@ -138,7 +138,7 @@ export function PasskeyManager() {
                                                 onClick={() => handleDeletePasskey(pk.id)}
                                                 disabled={deleteId === pk.id}
                                                 className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                                title="Delete passkey"
+                                                aria-label={`删除通行密钥 ${pk.name || "未命名设备"}`}
                                             >
                                                 {deleteId === pk.id ? (
                                                     <Loader2 className="h-4 w-4 animate-spin" />

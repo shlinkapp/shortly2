@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { formatDate } from "@/lib/utils"
+import { useMediaQuery } from "@/lib/use-media-query"
 import { Copy, MailPlus, RefreshCw, Trash2 } from "lucide-react"
 
 interface MailboxRecord {
@@ -145,6 +146,7 @@ export function TempEmailManager() {
   const [deletingMailboxId, setDeletingMailboxId] = useState<string | null>(null)
   const [pendingDeleteMailbox, setPendingDeleteMailbox] = useState<MailboxRecord | null>(null)
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState<MessageRecord | null>(null)
+  const isDesktop = useMediaQuery("(min-width: 768px)")
 
   const selectedMailbox = useMemo(
     () => mailboxes.find((item) => item.id === selectedMailboxId) ?? null,
@@ -355,9 +357,13 @@ export function TempEmailManager() {
     }
   }
 
-  function handleCopy(text: string, message: string) {
-    navigator.clipboard.writeText(text)
-    toast.success(message)
+  async function handleCopy(text: string, message: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(message)
+    } catch {
+      toast.error("复制失败，请手动复制")
+    }
   }
 
   return (
@@ -369,24 +375,26 @@ export function TempEmailManager() {
               <MailPlus className="h-4 w-4" />
               临时邮箱
             </CardTitle>
-            <CardDescription>创建专属临时邮箱，并在下方集中查看收到的邮件。</CardDescription>
+            <CardDescription>创建临时邮箱地址，并在右侧集中查看收到的邮件。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <section className="space-y-3">
               <div>
                 <h3 className="text-sm font-medium">创建新邮箱</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  输入前缀并选择域名，即可生成新的临时邮箱地址。
+                  输入前缀并选择域名后，就能生成新的临时邮箱地址。
                 </p>
               </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem] lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_12rem]">
                 <Input
+                  id="temp-email-prefix"
+                  aria-label="邮箱前缀"
                   placeholder="输入邮箱前缀，例如：summer-sale"
                   value={mailboxInput}
                   onChange={(e) => setMailboxInput(e.target.value)}
                 />
                 <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={emailDomains.length < 1}>
-                  <SelectTrigger>
+                  <SelectTrigger id="temp-email-domain" aria-label="邮箱域名">
                     <SelectValue placeholder="选择邮箱域名" />
                   </SelectTrigger>
                   <SelectContent>
@@ -422,7 +430,7 @@ export function TempEmailManager() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-medium">我的邮箱</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">选择一个邮箱即可在右侧查看邮件内容。</p>
+                  <p className="mt-1 text-xs text-muted-foreground">选择一个邮箱后，就能在右侧查看收件内容。</p>
                 </div>
                 {mailboxes.length > 0 && <Badge variant="outline">{mailboxes.length} 个</Badge>}
               </div>
@@ -462,7 +470,7 @@ export function TempEmailManager() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-destructive opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive"
+                            className="min-h-9 px-2 text-destructive transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                             onClick={() => setPendingDeleteMailbox(mailbox)}
                             disabled={deletingMailboxId === mailbox.id}
                           >
@@ -489,7 +497,7 @@ export function TempEmailManager() {
                 <CardDescription>
                   {selectedMailbox
                     ? `当前邮箱共有 ${selectedMailbox.messageCount} 封邮件，未读 ${selectedMailbox.unreadCount} 封。`
-                    : "从左侧选择一个邮箱后，即可查看收到的邮件。"}
+                    : "先从左侧选择一个邮箱，再查看收到的邮件。"}
                 </CardDescription>
               </div>
               {selectedMailbox && (
@@ -519,131 +527,129 @@ export function TempEmailManager() {
                 <p>这个邮箱暂时还没有收到邮件。</p>
                 <p className="mt-2">复制上方邮箱地址，去注册或接收验证邮件后再回来查看。</p>
               </div>
-            ) : (
-              <>
-                <div className="space-y-3 md:hidden">
-                  {messages.map((message) => (
-                    <div key={message.id} className="rounded-lg border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
-                          {message.fromName && (
-                            <p className="truncate text-xs text-muted-foreground">{message.from}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Badge variant={message.isRead ? "outline" : "secondary"}>
-                            {message.isRead ? "已读" : "未读"}
-                          </Badge>
-                          {message.hasAttachments && <Badge variant="outline">附件</Badge>}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 space-y-1">
-                        <p className="text-sm">{message.subject || "(无主题)"}</p>
-                        <p className="line-clamp-2 text-xs text-muted-foreground">
-                          {(message.text || message.html || "").replace(/\s+/g, " ") || "无正文"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{formatDate(message.receivedAt)}</p>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {!message.isRead && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleMarkRead(message.id)}
-                            disabled={mutatingMessageId === message.id}
-                          >
-                            标记为已读
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setPendingDeleteMessage(message)}
-                          disabled={mutatingMessageId === message.id}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          删除邮件
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="hidden overflow-x-auto rounded-lg border md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[180px]">发件人</TableHead>
-                        <TableHead className="min-w-[180px]">主题</TableHead>
-                        <TableHead className="w-24">状态</TableHead>
-                        <TableHead className="hidden w-32 md:table-cell">时间</TableHead>
-                        <TableHead className="w-36 text-right">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {messages.map((message) => (
-                        <TableRow key={message.id}>
-                          <TableCell>
-                            <div className="max-w-[220px]">
-                              <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
-                              {message.fromName && (
-                                <p className="truncate text-xs text-muted-foreground">{message.from}</p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="max-w-[280px]">
-                              <p className="truncate text-sm">{message.subject || "(无主题)"}</p>
-                              <p className="mt-1 truncate text-xs text-muted-foreground">
-                                {(message.text || message.html || "").replace(/\s+/g, " ") || "无正文"}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant={message.isRead ? "outline" : "secondary"}>
-                                {message.isRead ? "已读" : "未读"}
-                              </Badge>
-                              {message.hasAttachments && <Badge variant="outline">附件</Badge>}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
-                            {formatDate(message.receivedAt)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {!message.isRead && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleMarkRead(message.id)}
-                                  disabled={mutatingMessageId === message.id}
-                                >
-                                  标记已读
-                                </Button>
-                              )}
+            ) : isDesktop ? (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[180px]">发件人</TableHead>
+                      <TableHead className="min-w-[180px]">主题</TableHead>
+                      <TableHead className="w-24">状态</TableHead>
+                      <TableHead className="hidden w-32 md:table-cell">时间</TableHead>
+                      <TableHead className="w-36 text-right">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {messages.map((message) => (
+                      <TableRow key={message.id}>
+                        <TableCell>
+                          <div className="max-w-[220px]">
+                            <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
+                            {message.fromName && (
+                              <p className="truncate text-xs text-muted-foreground">{message.from}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-[280px]">
+                            <p className="truncate text-sm">{message.subject || "(无主题)"}</p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {(message.text || message.html || "").replace(/\s+/g, " ") || "无正文"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant={message.isRead ? "outline" : "secondary"}>
+                              {message.isRead ? "已读" : "未读"}
+                            </Badge>
+                            {message.hasAttachments && <Badge variant="outline">附件</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                          {formatDate(message.receivedAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {!message.isRead && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => setPendingDeleteMessage(message)}
+                                onClick={() => handleMarkRead(message.id)}
                                 disabled={mutatingMessageId === message.id}
                               >
-                                <Trash2 className="h-4 w-4" />
-                                删除
+                                标记已读
                               </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setPendingDeleteMessage(message)}
+                              disabled={mutatingMessageId === message.id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              删除
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
+                        {message.fromName && (
+                          <p className="truncate text-xs text-muted-foreground">{message.from}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge variant={message.isRead ? "outline" : "secondary"}>
+                          {message.isRead ? "已读" : "未读"}
+                        </Badge>
+                        {message.hasAttachments && <Badge variant="outline">附件</Badge>}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-1">
+                      <p className="text-sm">{message.subject || "(无主题)"}</p>
+                      <p className="line-clamp-2 text-xs text-muted-foreground">
+                        {(message.text || message.html || "").replace(/\s+/g, " ") || "无正文"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{formatDate(message.receivedAt)}</p>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {!message.isRead && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleMarkRead(message.id)}
+                          disabled={mutatingMessageId === message.id}
+                        >
+                          标记为已读
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setPendingDeleteMessage(message)}
+                        disabled={mutatingMessageId === message.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        删除邮件
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -671,7 +677,7 @@ export function TempEmailManager() {
               onClick={() => pendingDeleteMailbox && handleDeleteMailbox(pendingDeleteMailbox)}
               disabled={!!deletingMailboxId}
             >
-              {deletingMailboxId === pendingDeleteMailbox?.id ? "删除中..." : "确认删除"}
+              {deletingMailboxId === pendingDeleteMailbox?.id ? "删除中..." : "删除邮箱"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -699,7 +705,7 @@ export function TempEmailManager() {
               onClick={() => pendingDeleteMessage && handleDeleteMessage(pendingDeleteMessage.id, !pendingDeleteMessage.isRead)}
               disabled={!!mutatingMessageId}
             >
-              {mutatingMessageId === pendingDeleteMessage?.id ? "删除中..." : "确认删除"}
+              {mutatingMessageId === pendingDeleteMessage?.id ? "删除中..." : "删除邮件"}
             </Button>
           </DialogFooter>
         </DialogContent>
