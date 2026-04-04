@@ -4,8 +4,8 @@ type Bindings = {
   TELEGRAM_BOT_TOKEN: string;
   API_BASE_URL: string;
   TGBOT_KV: KVNamespace;
-  DEFAULT_SHORT_DOMAIN: string;
-  DEFAULT_EMAIL_DOMAIN: string;
+  DEFAULT_SHORT_DOMAIN?: string;
+  DEFAULT_EMAIL_DOMAIN?: string;
 };
 
 type TelegramChat = {
@@ -74,6 +74,16 @@ type ShortLinkListResponse = {
   totalPages: number;
 };
 
+type DomainListResponse = {
+  emailDomains?: Array<{ host: string; isDefault?: boolean }>;
+  shortDomains?: Array<{ host: string; isDefault?: boolean }>;
+};
+
+type ResolvedDomains = {
+  email: string[];
+  short: string[];
+};
+
 type CallbackAction =
   | "email:delete"
   | "email:read"
@@ -106,13 +116,13 @@ type SendMessageOptions = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 const HELP_TEXT = [
-  "<b>Orz.cm Telegram Bot</b>",
+  "<b>Shortly Telegram Bot</b>",
   "",
-  "<code>/setkey &lt;api_key&gt;</code> 绑定你的账号",
+  "<code>/setkey &lt;api_key&gt;</code> 绑定你的 Shortly API Key",
   "<code>/short</code> 通过按钮交互创建短链接",
   "<code>/short &lt;url&gt; [slug] [domain]</code> 直接创建短链接",
   "<code>/links [page]</code> 查看当前短链接列表",
-  "<code>/email [prefix] [domain]</code> 创建邮箱",
+  "<code>/email [prefix] [domain]</code> 创建临时邮箱",
   "<code>/emails [page]</code> 查看当前邮箱列表",
   "<code>/me</code> 查看当前机器人状态",
   "<code>/cancel</code> 取消当前交互流程",
@@ -121,7 +131,7 @@ const HELP_TEXT = [
 const LIST_PAGE_SIZE = 10;
 const SESSION_TTL_SECONDS = 30 * 60;
 
-app.get("/", (c) => c.text("Orz.cm Telegram Bot Worker is running!"));
+app.get("/", (c) => c.text("Shortly Telegram Bot Worker is running!"));
 
 app.post("/webhook", async (c) => {
   const update = await c.req.json<TelegramUpdate>();
@@ -252,7 +262,8 @@ async function handleCommand(
     case "/emails":
       await listMailboxes(c, chatId, apiKey ?? "", args[0]);
       return;
-    case "/me":
+    case "/me": {
+      const domains = await resolveDomains(c.env);
       await sendMessage(
         token,
         chatId,
@@ -260,20 +271,22 @@ async function handleCommand(
           "<b>机器人状态</b>",
           "",
           "API Key：<b>已绑定</b>",
-          `默认短链域名：<code>${escapeHtml(getDefaultDomains(c.env.DEFAULT_SHORT_DOMAIN, "orz.cm")[0])}</code>`,
-          `默认邮箱域名：<code>${escapeHtml(getDefaultDomains(c.env.DEFAULT_EMAIL_DOMAIN, "mx.orz.cm")[0])}</code>`,
+          `默认短链域名：<code>${escapeHtml(domains.short[0])}</code>`,
+          `默认邮箱域名：<code>${escapeHtml(domains.email[0])}</code>`,
         ].join("\n"),
       );
       return;
+    }
     default:
       await sendMessage(token, chatId, HELP_TEXT);
   }
 }
 
 async function startShortCreateSession(c: { env: Bindings }, chatId: number) {
+  const domains = await resolveDomains(c.env);
   const session: ShortCreateSession = {
     draft: {
-      domain: getDefaultDomains(c.env.DEFAULT_SHORT_DOMAIN, "orz.cm")[0],
+      domain: domains.short[0],
       slug: generateRandomSlug(6),
       target: "",
     },
@@ -533,9 +546,9 @@ async function createMailbox(
   args: string[],
 ) {
   const token = c.env.TELEGRAM_BOT_TOKEN;
+  const domains = await resolveDomains(c.env);
   const prefix = normalizeEmailPrefix(args[0]) || generateRandomLowercaseLetters(6);
-  const domain = normalizeDomain(args[1])
-    || getDefaultDomains(c.env.DEFAULT_EMAIL_DOMAIN, "mx.orz.cm")[0];
+  const domain = normalizeDomain(args[1]) || domains.email[0];
   const emailAddress = `${prefix}@${domain}`;
 
   try {
@@ -564,7 +577,7 @@ async function createMailbox(
         "<b>邮箱创建成功</b>",
         "",
         `地址：<code>${escapeHtml(emailAddress)}</code>`,
-        "当 Telegram 收件推送已配置可用时，发往该地址的新邮件会推送到当前会话。",
+        "你可以使用 <code>/emails</code> 查看当前邮箱列表。",
       ].join("\n"),
     );
   } catch (error) {
@@ -635,9 +648,9 @@ async function createShortLinkFromInput(
   apiKey: string,
   args: string[],
 ) {
+  const domains = await resolveDomains(c.env);
   const draft = {
-    domain: normalizeDomain(args[2])
-      || getDefaultDomains(c.env.DEFAULT_SHORT_DOMAIN, "orz.cm")[0],
+    domain: normalizeDomain(args[2]) || domains.short[0],
     slug: normalizeSlug(args[1]) || generateRandomSlug(6),
     target: args[0]?.trim() || "",
   };
@@ -821,6 +834,50 @@ function buildShortDraftKeyboard() {
       ],
     ],
   };
+}
+
+async function resolveDomains(env: Bindings): Promise<ResolvedDomains> {
+  const fallbackShort = getDefaultDomains(env.DEFAULT_SHORT_DOMAIN, "short.ly");
+  const fallbackEmail = getDefaultDomains(env.DEFAULT_EMAIL_DOMAIN, "mail.short.ly");
+
+  try {
+    const response = await fetch(`${env.API_BASE_URL}/domains`);
+    if (!response.ok) {
+      return { short: fallbackShort, email: fallbackEmail };
+    }
+
+    const data = await response.json() as DomainListResponse;
+    return {
+      short: selectPreferredDomains(data.shortDomains, fallbackShort),
+      email: selectPreferredDomains(data.emailDomains, fallbackEmail),
+    };
+  } catch (error) {
+    console.error("Failed to resolve domains from Shortly API:", error);
+    return { short: fallbackShort, email: fallbackEmail };
+  }
+}
+
+function selectPreferredDomains(
+  domains: Array<{ host: string; isDefault?: boolean }> | undefined,
+  fallback: string[],
+) {
+  if (!domains?.length) {
+    return fallback;
+  }
+
+  const normalized = domains
+    .map((item) => ({ host: normalizeDomain(item.host), isDefault: Boolean(item.isDefault) }))
+    .filter((item): item is { host: string; isDefault: boolean } => Boolean(item.host));
+
+  if (!normalized.length) {
+    return fallback;
+  }
+
+  const defaults = normalized.filter((item) => item.isDefault).map((item) => item.host);
+  const others = normalized.filter((item) => !item.isDefault).map((item) => item.host);
+  const merged = [...defaults, ...others];
+
+  return Array.from(new Set(merged));
 }
 
 async function getSession(env: Bindings, chatId: number) {

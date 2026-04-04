@@ -1,10 +1,10 @@
 import PostalMime, { Email } from 'postal-mime';
 
 interface Env {
-	R2_BUCKET: R2Bucket;
+	R2_BUCKET?: R2Bucket;
 	APP_API_URL: string;
 	INBOUND_EMAIL_SECRET: string;
-	ENABLE_ATTACHMENTS: string;
+	ENABLE_ATTACHMENTS?: string;
 }
 
 type ForwardedAttachment = {
@@ -42,63 +42,95 @@ const worker = {
 		try {
 			email = await PostalMime.parse(message.raw);
 		} catch (error) {
-			console.error('Failed to parse email:', error);
+			console.error('Failed to parse inbound email for Shortly:', error);
 			return;
 		}
 
+		const messageId = email.messageId?.trim() || '';
 		const emailData: ForwardedEmail = {
 			from: message.from,
-			fromName: email.from.name || '',
+			fromName: email.from?.name?.trim() || '',
 			to: message.to,
-			subject: email.subject || 'No Subject',
+			subject: email.subject?.trim() || '',
 			text: email.text || '',
 			html: email.html || '',
 			date: email.date || '',
-			messageId: email.messageId || '',
+			messageId,
 			cc: JSON.stringify(email.cc || []),
-			replyTo: JSON.stringify(email.replyTo || ''),
+			replyTo: JSON.stringify(email.replyTo || []),
 			headers: JSON.stringify(email.headers || []),
-			attachments: [],
+			attachments: await uploadAttachments(email, env, message.to, messageId),
 		};
 
-		if (env.ENABLE_ATTACHMENTS === '1' && email.attachments && email.attachments.length > 0) {
-			const date = new Date();
-			const year = date.getUTCFullYear();
-			const month = date.getUTCMonth() + 1;
-
-			for (const attachment of email.attachments) {
-				const r2Path = `${year}/${month}/${attachment.filename}`;
-				if (env.R2_BUCKET) {
-					await env.R2_BUCKET.put(r2Path, attachment.content);
-				}
-
-				const size =
-					typeof attachment.content === 'string'
-						? attachment.content.length
-						: attachment.content.byteLength;
-
-				emailData.attachments.push({
-					filename: attachment.filename || 'untitled',
-					mimeType: attachment.mimeType || 'application/octet-stream',
-					r2Path,
-					size,
-				});
-			}
-		}
-
-		await forwardToApp(env.APP_API_URL, env.INBOUND_EMAIL_SECRET, emailData);
+		await forwardToShortly(env.APP_API_URL, env.INBOUND_EMAIL_SECRET, emailData);
 	},
 };
 
 export default worker;
 
-async function forwardToApp(
+async function uploadAttachments(
+	email: Email,
+	env: Env,
+	toEmail: string,
+	messageId: string,
+): Promise<ForwardedAttachment[]> {
+	if (env.ENABLE_ATTACHMENTS !== '1' || !email.attachments?.length) {
+		return [];
+	}
+
+	if (!env.R2_BUCKET) {
+		console.warn('ENABLE_ATTACHMENTS is enabled but R2_BUCKET is not configured. Skipping attachment uploads.');
+		return [];
+	}
+
+	const now = new Date();
+	const year = now.getUTCFullYear();
+	const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+	const mailboxKey = sanitizePathSegment(toEmail);
+	const messageKey = sanitizePathSegment(messageId || crypto.randomUUID());
+	const attachments: ForwardedAttachment[] = [];
+
+	for (const [index, attachment] of email.attachments.entries()) {
+		const filename = attachment.filename?.trim() || `attachment-${index + 1}`;
+		const r2Path = `${year}/${month}/${mailboxKey}/${messageKey}/${index + 1}-${sanitizeFilename(filename)}`;
+		await env.R2_BUCKET.put(r2Path, attachment.content, {
+			httpMetadata: {
+				contentType: attachment.mimeType || 'application/octet-stream',
+			},
+		});
+
+		attachments.push({
+			filename,
+			mimeType: attachment.mimeType || 'application/octet-stream',
+			r2Path,
+			size: getAttachmentSize(attachment.content),
+		});
+	}
+
+	return attachments;
+}
+
+function getAttachmentSize(content: string | Uint8Array): number {
+	return typeof content === 'string' ? new TextEncoder().encode(content).byteLength : content.byteLength;
+}
+
+function sanitizeFilename(value: string): string {
+	const sanitized = value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+	return sanitized || 'attachment';
+}
+
+function sanitizePathSegment(value: string): string {
+	const sanitized = value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+	return sanitized || 'unknown';
+}
+
+async function forwardToShortly(
 	apiUrl: string,
 	inboundEmailSecret: string,
 	emailData: ForwardedEmail,
 ): Promise<void> {
 	try {
-		await fetch(apiUrl, {
+		const response = await fetch(apiUrl, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -106,7 +138,18 @@ async function forwardToApp(
 			},
 			body: JSON.stringify(emailData),
 		});
+
+		if (!response.ok) {
+			const responseText = await response.text().catch(() => '');
+			console.error('Shortly inbound email API returned a non-2xx response.', {
+				status: response.status,
+				statusText: response.statusText,
+				body: responseText.slice(0, 500),
+				to: emailData.to,
+				messageId: emailData.messageId,
+			});
+		}
 	} catch (error) {
-		console.log('Error forwarding email:', error);
+		console.error('Failed to forward inbound email to Shortly:', error);
 	}
 }

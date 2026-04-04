@@ -1,6 +1,7 @@
 import { and, desc, eq, like, or, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import {
+  telegramBinding,
   tempMailbox,
   tempEmailArchive,
   tempEmailArchiveAttachment,
@@ -9,6 +10,7 @@ import {
   user,
 } from "@/lib/schema"
 import { getAllowedEmailDomain, parseDomainHost } from "@/lib/site-domains"
+import { sendInboundEmailTelegramNotification } from "@/lib/telegram"
 
 function normalizeLocalPart(value: string): string | null {
   const normalized = value.trim().toLowerCase()
@@ -82,6 +84,37 @@ async function insertEmailAttachments(messageId: string, attachments: InboundAtt
       createdAt: new Date(),
     }))
   )
+}
+
+async function notifyMailboxOwnerOnTelegram(
+  mailbox: { userId: string; emailAddress: string },
+  payload: InboundEmailPayload,
+  attachments: InboundAttachment[]
+) {
+  const binding = await db
+    .select({ chatId: telegramBinding.chatId })
+    .from(telegramBinding)
+    .where(eq(telegramBinding.userId, mailbox.userId))
+    .get()
+
+  if (!binding?.chatId || !process.env.TELEGRAM_BOT_TOKEN?.trim()) {
+    return
+  }
+
+  try {
+    await sendInboundEmailTelegramNotification({
+      chatId: binding.chatId,
+      emailAddress: mailbox.emailAddress,
+      from: payload.from,
+      fromName: payload.fromName,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+      attachmentsCount: attachments.length,
+    })
+  } catch (error) {
+    console.error("Failed to send Telegram inbound email notification:", error)
+  }
 }
 
 async function insertArchiveAttachments(archiveId: string, attachments: InboundAttachment[]) {
@@ -348,6 +381,7 @@ export async function storeInboundEmail(payload: InboundEmailPayload) {
     createdAt: new Date(),
   })
   await insertEmailAttachments(messageRowId, attachments)
+  await notifyMailboxOwnerOnTelegram(mailbox, payload, attachments)
 
   return { data: { mailboxId: mailbox.id, messageId: messageRowId, duplicated: false, archived: false } }
 }

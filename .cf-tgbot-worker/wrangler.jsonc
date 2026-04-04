@@ -1,10 +1,6 @@
-/**
- * Configuration for Cloudflare Worker: WR.DO Telegram Bot
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "tgbot",
+	"name": "shortly-telegram-bot-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-03-10",
 	"observability": {
@@ -14,14 +10,27 @@
 		"nodejs_compat"
 	],
 	"vars": {
-		"API_BASE_URL": "https://orz.cm/v1",
-		"DEFAULT_SHORT_DOMAIN": "orz.cm,shlink.app,signup.li",
-		"DEFAULT_EMAIL_DOMAIN": "signup.li,orz.cm,unsend.de"
+		"API_BASE_URL": "https://your-shortly-domain.com/v1",
+		"DEFAULT_SHORT_DOMAIN": "short.ly,go.short.ly",
+		"DEFAULT_EMAIL_DOMAIN": "mail.short.ly,inbox.short.ly"
 	},
 	"kv_namespaces": [
 		{
 			"binding": "TGBOT_KV",
-			"id": "e6578945efec48eaaf18bee7c0453e3a"
+			"id": "replace-with-your-kv-namespace-id"
 		}
 	]
+
+	// TELEGRAM_BOT_TOKEN 是敏感信息，请使用：
+	// wrangler secret put TELEGRAM_BOT_TOKEN
+	//
+	// API_BASE_URL:
+	// Shortly 主程序的 /v1 API 根地址
+	//
+	// DEFAULT_SHORT_DOMAIN / DEFAULT_EMAIL_DOMAIN:
+	// 仅作为 /v1/domains 不可用时的回退值
+	// Worker 会优先读取 Shortly 当前启用的默认域名配置
+	//
+	// TGBOT_KV:
+	// 保存 Telegram chat 绑定和短链交互草稿的 KV 命名空间
 }

@@ -64,8 +64,13 @@ cp .env.example .env
 - `TRUST_X_FORWARDED_FOR`: （可选）是否信任 `X-Forwarded-For`，默认 `true`
 - `TRUST_PROXY_HOPS`: （可选）受信代理跳数，默认 `1`，用于从 `X-Forwarded-For` 反推客户端 IP
 - `NEXT_PUBLIC_APP_URL`: 应用程序的前台 URL (如 `http://localhost:3000`)
+- `INBOUND_EMAIL_SECRET`: 选填但强烈建议配置，用于保护 `POST /v1/emails/inbound` 入站邮件接口；启用 Cloudflare 邮件转发 Worker 时必须与 Worker 侧保持一致
+- `TELEGRAM_BOT_TOKEN`: 选填，用于让主程序在临时邮箱收到新邮件后，直接通过 Telegram Bot API 推送通知给已绑定聊天的用户；通常应与 `.cf-tgbot-worker` 使用同一个 Bot Token
 - `RESEND_API_KEY`: 选填，用于开启邮件验证码登录（建议与 Github 至少配置一种）
 - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET`: 选填，用于开启 GitHub 授权登录
+
+如果你要启用临时邮箱的真实收件链路，还需要额外部署仓库中的 Cloudflare Email Worker：`.cf-email-forwarding-worker`。
+该 Worker 会承接 Cloudflare Email Routing 的入站邮件，并转发到 Shortly 的 `POST /v1/emails/inbound`。具体部署方式见 `.cf-email-forwarding-worker/README.md`。
 
 ### 3. 初始化数据库
 
@@ -98,6 +103,18 @@ bun run dev
 4. **管理员域名配置**：
     - 管理员可配置域名是否可用于短链接、临时邮箱，以及默认短链域名 / 默认邮箱域名。
     - 用户端的短链域名下拉、邮箱域名下拉以及 API 文档说明都会基于这些配置动态展示。
+5. **临时邮箱入站链路**：
+    - 用户只能在管理员已启用 `supportsTempEmail` 的域名下创建临时邮箱。
+    - 外部邮件需要通过 Cloudflare Email Routing 投递到 `.cf-email-forwarding-worker`，再由 Worker 转发到 Shortly 的 `POST /v1/emails/inbound`。
+    - 主应用会使用 `INBOUND_EMAIL_SECRET` 校验该入站请求；如果收件地址不存在，邮件不会被直接丢弃，而是进入 archive。
+    - 若 Worker 启用了附件上传，附件文件存放在 Cloudflare R2，主应用数据库只保存附件元数据与 `r2Path`。
+    - Worker 的部署、secret 配置和 R2 绑定说明见 `.cf-email-forwarding-worker/README.md`。
+6. **Telegram Bot 集成**：
+    - `.cf-tgbot-worker` 是独立部署的 Cloudflare Worker，负责接收 Telegram webhook、处理 `/setkey` `/short` `/email` `/links` `/emails` `/me` 等命令，并调用 Shortly 主程序的 `/v1` API。
+    - 用户先在 Telegram 中通过 `/setkey <api_key>` 绑定 Shortly API Key，主程序再通过 `POST /v1/integrations/telegram/bind` 建立 Telegram chat 与当前用户的绑定关系。
+    - 主程序配置 `TELEGRAM_BOT_TOKEN` 后，会在临时邮箱成功收件时直接调用 Telegram Bot API，把“新邮件提醒”推送到该用户已绑定的 chat。
+    - Telegram 推送失败不会影响邮件正常落库；未绑定 Telegram 的用户也不会影响正常收件。
+    - Telegram Worker 的部署、KV 配置、Webhook 设置和回退域名说明见 `.cf-tgbot-worker/README.md`。
 
 ## 📜 许可协议
 
