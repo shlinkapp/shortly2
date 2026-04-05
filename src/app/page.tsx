@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { getAvatarUrl } from "@/lib/gravatar"
 import { resolveCanonicalAppUrl } from "@/lib/http"
+import { getSiteSettings } from "@/lib/site-settings"
 import { UrlShortener } from "@/components/url-shortener"
 import { UserMenu } from "@/components/user-menu"
 import { Button } from "@/components/ui/button"
@@ -39,7 +40,11 @@ export default async function HomePage({
   }
 
   await initDb()
-  const session = await auth.api.getSession({ headers: headersList })
+  const [settings, session] = await Promise.all([
+    getSiteSettings(),
+    auth.api.getSession({ headers: headersList }),
+  ])
+  const siteName = settings?.siteName?.trim() || "Shortly"
   const user = session?.user
     ? {
       name: session.user.name,
@@ -72,13 +77,13 @@ export default async function HomePage({
       </div>
 
       <div className="flex flex-1 items-center justify-center py-10 sm:py-16">
-        <UrlShortener user={user} />
+        <UrlShortener user={user} siteName={siteName} />
       </div>
 
       <footer className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground/80">
         <span className="inline-flex items-center gap-1">
           <Copyright className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{new Date().getFullYear()} Shortly.</span>
+          <span>{new Date().getFullYear()} {siteName}.</span>
         </span>
         <Link
           href="https://github.com/shlinkapp/shortly2"

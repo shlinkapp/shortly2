@@ -9,12 +9,13 @@ interface UrlShortenerProps {
     image?: string | null
     role?: string
   } | null
+  siteName?: string
 }
 
-export function UrlShortener({ user }: UrlShortenerProps) {
+export function UrlShortener({ user, siteName }: UrlShortenerProps) {
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <ShortLinkCreator user={user} mode="homepage" />
+      <ShortLinkCreator user={user} mode="homepage" siteName={siteName} />
     </div>
   )
 }
