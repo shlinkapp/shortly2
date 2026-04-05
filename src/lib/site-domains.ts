@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from "next/cache"
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, ne } from "drizzle-orm"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 
@@ -12,6 +12,37 @@ type ActiveEmailDomain = {
   host: string
   isDefaultEmailDomain: boolean
 }
+
+type SiteDomainDefaultsInput = {
+  isDefaultShortDomain: boolean
+  isDefaultEmailDomain: boolean
+}
+
+type CreateSiteDomainRecordInput = {
+  id: string
+  host: string
+  supportsShortLinks: boolean
+  supportsTempEmail: boolean
+  isActive: boolean
+  isDefaultShortDomain: boolean
+  isDefaultEmailDomain: boolean
+  createdAt: Date
+}
+
+type UpdateSiteDomainRecordInput = {
+  host: string
+  supportsShortLinks: boolean
+  supportsTempEmail: boolean
+  isActive: boolean
+  isDefaultShortDomain: boolean
+  isDefaultEmailDomain: boolean
+}
+
+type SiteDomainWriter = Pick<typeof db, "insert" | "select" | "update">
+
+type DeleteSiteDomainWriter = Pick<typeof db, "delete">
+
+export type SiteDomainWriteInput = CreateSiteDomainRecordInput | UpdateSiteDomainRecordInput
 
 const SITE_DOMAINS_TAG = "site-domains"
 const SITE_DOMAINS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
@@ -49,14 +80,106 @@ const getCachedActiveEmailDomains = unstable_cache(
 )
 
 function normalizeDomainHost(value: string): string | null {
-  const trimmed = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "")
+  const trimmed = value.trim()
   if (!trimmed) return null
-  if (trimmed.includes("/") || trimmed.includes("@") || trimmed.includes("://")) return null
-  return trimmed
+  if (trimmed.includes("@") || trimmed.includes("/") || trimmed.includes("?") || trimmed.includes("#")) return null
+
+  const candidate = trimmed.replace(/\.+$/, "")
+  if (!candidate) return null
+
+  try {
+    const url = new URL(`http://${candidate}`)
+    if (url.username || url.password) return null
+    if (url.protocol !== "http:") return null
+    if (url.port) return null
+    if (url.pathname !== "/" || url.search || url.hash) return null
+
+    const normalizedHost = url.hostname.toLowerCase()
+    if (!normalizedHost) return null
+    if (normalizedHost.length > 255) return null
+    if (!normalizedHost.includes(".")) return null
+    if (normalizedHost.startsWith(".") || normalizedHost.endsWith(".")) return null
+    if (normalizedHost.split(".").some((label) => !label || label.length > 63 || label.startsWith("-") || label.endsWith("-"))) {
+      return null
+    }
+
+    return normalizedHost
+  } catch {
+    return null
+  }
 }
 
 export function parseDomainHost(value: string): string | null {
   return normalizeDomainHost(value)
+}
+
+async function clearDefaultSiteDomainFlags(
+  writer: SiteDomainWriter,
+  input: SiteDomainDefaultsInput,
+  excludeId?: string
+) {
+  if (input.isDefaultShortDomain) {
+    await writer
+      .update(siteDomain)
+      .set({ isDefaultShortDomain: false })
+      .where(
+        excludeId
+          ? and(eq(siteDomain.isDefaultShortDomain, true), ne(siteDomain.id, excludeId))
+          : eq(siteDomain.isDefaultShortDomain, true)
+      )
+  }
+
+  if (input.isDefaultEmailDomain) {
+    await writer
+      .update(siteDomain)
+      .set({ isDefaultEmailDomain: false })
+      .where(
+        excludeId
+          ? and(eq(siteDomain.isDefaultEmailDomain, true), ne(siteDomain.id, excludeId))
+          : eq(siteDomain.isDefaultEmailDomain, true)
+      )
+  }
+}
+
+export async function createSiteDomainRecord(input: CreateSiteDomainRecordInput) {
+  return db.transaction(async (tx) => {
+    await clearDefaultSiteDomainFlags(tx, input)
+    await tx.insert(siteDomain).values(input)
+    return tx.select().from(siteDomain).where(eq(siteDomain.id, input.id)).get()
+  })
+}
+
+export async function updateSiteDomainRecord(id: string, input: UpdateSiteDomainRecordInput) {
+  return db.transaction(async (tx) => {
+    await clearDefaultSiteDomainFlags(tx, input, id)
+    await tx.update(siteDomain).set(input).where(eq(siteDomain.id, id))
+    return tx.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
+  })
+}
+
+async function deleteSiteDomainRecord(id: string, writer: DeleteSiteDomainWriter = db) {
+  await writer.delete(siteDomain).where(eq(siteDomain.id, id))
+}
+
+export function revalidateSiteDomainsCache() {
+  revalidateTag(SITE_DOMAINS_TAG, "max")
+}
+
+export async function writeCreatedSiteDomain(input: CreateSiteDomainRecordInput) {
+  const created = await createSiteDomainRecord(input)
+  revalidateSiteDomainsCache()
+  return created
+}
+
+export async function writeUpdatedSiteDomain(id: string, input: UpdateSiteDomainRecordInput) {
+  const updated = await updateSiteDomainRecord(id, input)
+  revalidateSiteDomainsCache()
+  return updated
+}
+
+export async function writeDeletedSiteDomain(id: string) {
+  await deleteSiteDomainRecord(id)
+  revalidateSiteDomainsCache()
 }
 
 export async function getActiveShortDomains() {
@@ -105,6 +228,3 @@ export async function getAllowedEmailDomain(host?: string | null) {
   return domains.find((item) => item.host === normalized) ?? null
 }
 
-export function revalidateSiteDomainsCache() {
-  revalidateTag(SITE_DOMAINS_TAG, "max")
-}

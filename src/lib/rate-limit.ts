@@ -10,7 +10,15 @@ interface RateLimitParams {
     userLimit: number
 }
 
-export async function checkRateLimit({ ip, userId, allowAnonymous, anonLimit, userLimit }: RateLimitParams) {
+export type RateLimitResult =
+  | { success: true }
+  | { success: false; error: string; status: number }
+
+export async function checkRateLimit(
+  { ip, userId, allowAnonymous, anonLimit, userLimit }: RateLimitParams
+): Promise<RateLimitResult> {
+  // This is a soft rate limit based on recent persisted links, so concurrent requests can
+  // temporarily pass before their inserts are visible to later count queries.
   if (!allowAnonymous && !userId) {
     return { success: false, error: "Authentication required", status: 401 }
   }

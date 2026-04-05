@@ -230,9 +230,12 @@ async function _initDb() {
     CREATE INDEX IF NOT EXISTS link_log_owner_user_id_idx ON link_log(owner_user_id);
     CREATE INDEX IF NOT EXISTS link_log_event_type_idx ON link_log(event_type);
     CREATE INDEX IF NOT EXISTS link_log_created_at_idx ON link_log(created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS site_domain_host_idx ON site_domain(host);
     CREATE INDEX IF NOT EXISTS site_domain_short_idx ON site_domain(supports_short_links, is_active);
     CREATE INDEX IF NOT EXISTS site_domain_email_idx ON site_domain(supports_temp_email, is_active);
     CREATE UNIQUE INDEX IF NOT EXISTS telegram_binding_user_id_idx ON telegram_binding(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS telegram_binding_chat_id_idx ON telegram_binding(chat_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS temp_mailbox_email_address_idx ON temp_mailbox(email_address);
     CREATE INDEX IF NOT EXISTS temp_mailbox_user_id_idx ON temp_mailbox(user_id);
     CREATE INDEX IF NOT EXISTS temp_mailbox_domain_idx ON temp_mailbox(domain);
     CREATE INDEX IF NOT EXISTS temp_email_message_mailbox_id_idx ON temp_email_message(mailbox_id);
@@ -250,19 +253,14 @@ async function _initDb() {
   `)
 
   await Promise.all([
-    ensureColumn("short_link", "expires_at", "expires_at INTEGER"),
-    ensureColumn("short_link", "max_clicks", "max_clicks INTEGER"),
-    ensureColumn("short_link", "creator_ip", "creator_ip TEXT"),
-    ensureColumn("short_link", "domain", "domain TEXT NOT NULL DEFAULT ''"),
-    ensureColumn("site_setting", "anon_max_links_per_hour", "anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3"),
-    ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10"),
-    ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
+    ensureLegacyShortLinkColumns(),
+    ensureLegacySiteSettingColumns(),
   ])
 
-  await ensureShortLinkDomainSlugIndex()
+  await ensureLegacyShortLinkDomainSlugMigration()
 }
 
-async function ensureShortLinkDomainSlugIndex() {
+async function ensureLegacyShortLinkDomainSlugMigration() {
   const indexes = await client.execute(`PRAGMA index_list(short_link);`)
   const rows = indexes.rows as Array<Record<string, unknown>>
   const legacySlugUniqueIndexes = rows.filter((row) => Number(row.unique) === 1)
@@ -272,7 +270,7 @@ async function ensureShortLinkDomainSlugIndex() {
     const indexInfo = await client.execute(`PRAGMA index_info(${indexName});`)
     const columns = (indexInfo.rows as Array<Record<string, unknown>>).map((infoRow) => String(infoRow.name))
     if (columns.length === 1 && columns[0] === "slug") {
-      await rebuildShortLinkTable()
+      await rebuildLegacyShortLinkTable()
       return
     }
   }
@@ -283,7 +281,24 @@ async function ensureShortLinkDomainSlugIndex() {
   }
 }
 
-async function rebuildShortLinkTable() {
+async function ensureLegacyShortLinkColumns() {
+  await Promise.all([
+    ensureColumn("short_link", "expires_at", "expires_at INTEGER"),
+    ensureColumn("short_link", "max_clicks", "max_clicks INTEGER"),
+    ensureColumn("short_link", "creator_ip", "creator_ip TEXT"),
+    ensureColumn("short_link", "domain", "domain TEXT NOT NULL DEFAULT ''"),
+  ])
+}
+
+async function ensureLegacySiteSettingColumns() {
+  await Promise.all([
+    ensureColumn("site_setting", "anon_max_links_per_hour", "anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3"),
+    ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10"),
+    ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
+  ])
+}
+
+async function rebuildLegacyShortLinkTable() {
   await client.executeMultiple(`
     PRAGMA foreign_keys=OFF;
 

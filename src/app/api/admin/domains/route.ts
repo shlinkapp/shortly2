@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
-import { parseDomainHost, revalidateSiteDomainsCache } from "@/lib/site-domains"
+import { parseDomainHost, writeCreatedSiteDomain } from "@/lib/site-domains"
 import { asc, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -82,15 +82,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Domain already exists" }, { status: 409 })
   }
 
-  if (isDefaultShortDomain) {
-    await db.update(siteDomain).set({ isDefaultShortDomain: false })
-  }
-  if (isDefaultEmailDomain) {
-    await db.update(siteDomain).set({ isDefaultEmailDomain: false })
-  }
-
   const id = crypto.randomUUID()
-  await db.insert(siteDomain).values({
+  const created = await writeCreatedSiteDomain({
     id,
     host: normalizedHost,
     supportsShortLinks,
@@ -100,8 +93,5 @@ export async function POST(req: NextRequest) {
     isDefaultEmailDomain,
     createdAt: new Date(),
   })
-
-  const created = await db.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
-  revalidateSiteDomainsCache()
   return NextResponse.json({ data: created }, { status: 201 })
 }

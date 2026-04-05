@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { db, initDb } from "@/lib/db"
-import { shortLink, user } from "@/lib/schema"
-import { getLinkStatus } from "@/lib/link-status"
+import { initDb } from "@/lib/db"
 import { parseBoundedInt } from "@/lib/http"
-import { desc, eq, sql } from "drizzle-orm"
+import { listAdminLinks } from "@/lib/admin-links"
 import { headers } from "next/headers"
 
 export async function GET(req: NextRequest) {
@@ -16,42 +14,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const page = parseBoundedInt(searchParams.get("page"), 1, 1, 100000)
-  const pageSize = parseBoundedInt(searchParams.get("pageSize"), 50, 1, 200)
-  const offset = (page - 1) * pageSize
+  const limitParam = searchParams.get("limit") ?? searchParams.get("pageSize")
+  const limit = parseBoundedInt(limitParam, 50, 1, 200)
+  const result = await listAdminLinks(page, limit)
 
-  const [totalCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(shortLink)
-
-  const links = await db
-    .select({
-      id: shortLink.id,
-      userId: shortLink.userId,
-      userName: user.name,
-      userEmail: user.email,
-      originalUrl: shortLink.originalUrl,
-      slug: shortLink.slug,
-      clicks: shortLink.clicks,
-      maxClicks: shortLink.maxClicks,
-      expiresAt: shortLink.expiresAt,
-      createdAt: shortLink.createdAt,
-    })
-    .from(shortLink)
-    .leftJoin(user, eq(shortLink.userId, user.id))
-    .orderBy(desc(shortLink.createdAt))
-    .limit(pageSize)
-    .offset(offset)
-
-  const data = links.map((link) => ({
-    ...link,
-    ...getLinkStatus(link),
-  }))
-
-  return NextResponse.json({
-    data,
-    total: totalCount.count,
-    page,
-    pageSize,
-    totalPages: Math.ceil(totalCount.count / pageSize)
-  })
+  return NextResponse.json(result)
 }

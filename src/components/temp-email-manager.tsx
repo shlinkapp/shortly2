@@ -1,7 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import {
+  createClientErrorReporter,
+  getResponseErrorMessage,
+  getUserFacingErrorMessage,
+  readOptionalJson,
+} from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -132,6 +138,16 @@ function getRandomPrefix() {
   }).join("-")
 }
 
+function getNextMailboxSelection(rows: MailboxRecord[], currentMailboxId: string | null) {
+  if (currentMailboxId && rows.some((item) => item.id === currentMailboxId)) {
+    return currentMailboxId
+  }
+
+  return rows[0]?.id ?? null
+}
+
+const tempEmailReporter = createClientErrorReporter("temp_email_manager")
+
 export function TempEmailManager() {
   const [mailboxes, setMailboxes] = useState<MailboxRecord[]>([])
   const [selectedMailboxId, setSelectedMailboxId] = useState<string | null>(null)
@@ -139,13 +155,19 @@ export function TempEmailManager() {
   const [mailboxInput, setMailboxInput] = useState("")
   const [emailDomains, setEmailDomains] = useState<DomainRecord[]>([])
   const [selectedDomain, setSelectedDomain] = useState("")
+  const [loadingDomains, setLoadingDomains] = useState(true)
+  const [domainsError, setDomainsError] = useState<string | null>(null)
   const [loadingMailboxes, setLoadingMailboxes] = useState(true)
+  const [mailboxesError, setMailboxesError] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [messagesError, setMessagesError] = useState<string | null>(null)
   const [creatingMailbox, setCreatingMailbox] = useState(false)
   const [mutatingMessageId, setMutatingMessageId] = useState<string | null>(null)
   const [deletingMailboxId, setDeletingMailboxId] = useState<string | null>(null)
   const [pendingDeleteMailbox, setPendingDeleteMailbox] = useState<MailboxRecord | null>(null)
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState<MessageRecord | null>(null)
+  const latestMessageRequestIdRef = useRef(0)
+  const hasShownMailboxUnavailableToastRef = useRef(false)
   const isDesktop = useMediaQuery("(min-width: 768px)")
 
   const selectedMailbox = useMemo(
@@ -159,83 +181,194 @@ export function TempEmailManager() {
     return `${localPart}@${selectedDomain}`
   }, [mailboxInput, selectedDomain])
 
-  const fetchDomains = useCallback(async () => {
+  const canCreateMailbox = Boolean(selectedDomain) && !loadingDomains && !creatingMailbox
+  const hasMailboxList = mailboxes.length > 0
+  const messagePanelDescription = selectedMailbox
+    ? `当前邮箱共有 ${selectedMailbox.messageCount} 封邮件，未读 ${selectedMailbox.unreadCount} 封。列表会在你停留当前页面时自动刷新。`
+    : hasMailboxList
+      ? "先从左侧选择一个邮箱，再查看收到的邮件。"
+      : "先创建一个临时邮箱，再在这里集中查看收到的邮件。"
+  const emptyMailboxMessage = selectedMailbox
+    ? "复制上方邮箱地址，去注册或接收验证邮件后再回来查看；页面停留期间会自动刷新。"
+    : "先在左侧选择一个邮箱，或先创建新的临时邮箱。"
+  const noMailboxSelectionMessage = hasMailboxList
+    ? "左侧已有邮箱，选择一个后就能在这里查看邮件。"
+    : "先在左侧创建一个新的临时邮箱，然后就能开始收信。"
+
+  const fetchDomains = useCallback(async (options?: { silent?: boolean }) => {
+    setLoadingDomains(true)
+    setDomainsError(null)
+
     try {
       const res = await fetch("/api/domains")
+      const body = await readOptionalJson<DomainsResponse & { error?: string }>(res)
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        toast.error(body?.error || "加载邮箱域名失败")
+        const message = getResponseErrorMessage(body, "加载邮箱域名失败")
+        tempEmailReporter.warn("fetch_domains_failed_response", { status: res.status })
+        setEmailDomains([])
+        setSelectedDomain("")
+        setDomainsError(message)
+        if (!options?.silent) {
+          toast.error(message)
+        }
         return
       }
 
-      const body = await res.json() as DomainsResponse
-      const domains = body.emailDomains || []
+      const domains = body?.emailDomains || []
       setEmailDomains(domains)
       setSelectedDomain((current) => current || domains.find((item) => item.isDefault)?.host || domains[0]?.host || "")
-    } catch {
-      toast.error("加载邮箱域名失败")
+    } catch (error) {
+      const message = getUserFacingErrorMessage(error, "加载邮箱域名失败")
+      tempEmailReporter.report("fetch_domains_failed_exception", error)
+      setEmailDomains([])
+      setSelectedDomain("")
+      setDomainsError(message)
+      if (!options?.silent) {
+        toast.error(message)
+      }
+    } finally {
+      setLoadingDomains(false)
     }
   }, [])
 
-  const fetchMailboxes = useCallback(async () => {
+  const fetchMailboxes = useCallback(async (options?: { silent?: boolean }) => {
     setLoadingMailboxes(true)
+    setMailboxesError(null)
+
     try {
       const res = await fetch("/api/emails?page=1&limit=100")
+      const body = await readOptionalJson<MailboxResponse & { error?: string }>(res)
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        toast.error(body?.error || "加载邮箱失败")
+        const message = getResponseErrorMessage(body, "加载邮箱失败")
+        tempEmailReporter.warn("fetch_mailboxes_failed_response", { status: res.status })
+        setMailboxesError(message)
+        if (!options?.silent) {
+          toast.error(message)
+        }
         return
       }
 
-      const body = await res.json() as MailboxResponse
-      const rows = body.data || []
+      const rows = body?.data || []
+      hasShownMailboxUnavailableToastRef.current = false
       setMailboxes(rows)
-      setSelectedMailboxId((current) => {
-        if (current && rows.some((item) => item.id === current)) {
-          return current
-        }
-        return rows[0]?.id ?? null
-      })
-    } catch {
-      toast.error("加载邮箱失败")
+      setSelectedMailboxId((current) => getNextMailboxSelection(rows, current))
+      if (rows.length === 0) {
+        latestMessageRequestIdRef.current += 1
+        setMessages([])
+        setMessagesError(null)
+        setLoadingMessages(false)
+      }
+    } catch (error) {
+      const message = getUserFacingErrorMessage(error, "加载邮箱失败")
+      tempEmailReporter.report("fetch_mailboxes_failed_exception", error)
+      setMailboxesError(message)
+      if (!options?.silent) {
+        toast.error(message)
+      }
     } finally {
       setLoadingMailboxes(false)
     }
   }, [])
 
-  const fetchMessages = useCallback(async (mailboxId: string) => {
+  const handleMailboxUnavailable = useCallback(async (showToast = false) => {
+    if (showToast && !hasShownMailboxUnavailableToastRef.current) {
+      hasShownMailboxUnavailableToastRef.current = true
+      tempEmailReporter.warn("selected_mailbox_unavailable")
+      toast.error("当前邮箱已失效，已为你刷新邮箱列表")
+    }
+
+    latestMessageRequestIdRef.current += 1
+    setMessages([])
+    setMessagesError(null)
+    setLoadingMessages(false)
+    await fetchMailboxes()
+  }, [fetchMailboxes])
+
+  const fetchMessages = useCallback(async (mailboxId: string, options?: { silent?: boolean }) => {
+    const requestId = latestMessageRequestIdRef.current + 1
+    latestMessageRequestIdRef.current = requestId
     setLoadingMessages(true)
+    setMessagesError(null)
+
     try {
       const res = await fetch(`/api/emails/${mailboxId}/messages?page=1&limit=100`)
+      const body = await readOptionalJson<MessageResponse & { error?: string }>(res)
+
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        toast.error(body?.error || "加载邮件失败")
-        setMessages([])
+        if (res.status === 404) {
+          tempEmailReporter.warn("fetch_messages_mailbox_missing", { mailboxId })
+          await handleMailboxUnavailable(!options?.silent)
+          return
+        }
+
+        const message = getResponseErrorMessage(body, "加载邮件失败")
+        tempEmailReporter.warn("fetch_messages_failed_response", { mailboxId, status: res.status })
+        if (!options?.silent) {
+          toast.error(message)
+        }
+        if (latestMessageRequestIdRef.current === requestId) {
+          setMessages([])
+          setMessagesError(message)
+        }
         return
       }
 
-      const body = await res.json() as MessageResponse
+      if (!body || latestMessageRequestIdRef.current !== requestId || body.mailbox.id !== mailboxId) {
+        return
+      }
+
       setMessages(body.data || [])
-    } catch {
-      toast.error("加载邮件失败")
-      setMessages([])
+    } catch (error) {
+      const message = getUserFacingErrorMessage(error, "加载邮件失败")
+      tempEmailReporter.report("fetch_messages_failed_exception", error, { mailboxId })
+      if (!options?.silent) {
+        toast.error(message)
+      }
+      if (latestMessageRequestIdRef.current === requestId) {
+        setMessages([])
+        setMessagesError(message)
+      }
     } finally {
-      setLoadingMessages(false)
+      if (latestMessageRequestIdRef.current === requestId) {
+        setLoadingMessages(false)
+      }
     }
-  }, [])
+  }, [handleMailboxUnavailable])
 
   useEffect(() => {
     fetchDomains()
     fetchMailboxes()
   }, [fetchDomains, fetchMailboxes])
 
+  const canRetryMessages = !!selectedMailboxId && !loadingMessages
+
   useEffect(() => {
     if (!selectedMailboxId) {
+      latestMessageRequestIdRef.current += 1
       setMessages([])
+      setMessagesError(null)
+      setLoadingMessages(false)
       return
     }
+
     fetchMessages(selectedMailboxId)
   }, [fetchMessages, selectedMailboxId])
+
+  useEffect(() => {
+    if (!selectedMailboxId) {
+      return
+    }
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return
+      }
+
+      void fetchMailboxes().then(() => fetchMessages(selectedMailboxId, { silent: true }))
+    }, 15000)
+
+    return () => window.clearInterval(interval)
+  }, [fetchMailboxes, fetchMessages, selectedMailboxId])
 
   function handleGenerateRandomPrefix() {
     setMailboxInput(getRandomPrefix())
@@ -259,17 +392,24 @@ export function TempEmailManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emailAddress: `${localPart}@${selectedDomain}` }),
       })
-      const body = await res.json().catch(() => null)
+      const body = await readOptionalJson<{ error?: string }>(res)
       if (!res.ok) {
-        toast.error(body?.error || "创建邮箱失败")
+        tempEmailReporter.warn("create_mailbox_failed_response", {
+          status: res.status,
+          domain: selectedDomain,
+        })
+        toast.error(getResponseErrorMessage(body, "创建邮箱失败"))
         return
       }
 
       toast.success("临时邮箱已创建")
       setMailboxInput("")
       await fetchMailboxes()
-    } catch {
-      toast.error("创建邮箱失败")
+    } catch (error) {
+      tempEmailReporter.report("create_mailbox_failed_exception", error, {
+        domain: selectedDomain,
+      })
+      toast.error(getUserFacingErrorMessage(error, "创建邮箱失败"))
     } finally {
       setCreatingMailbox(false)
     }
@@ -279,51 +419,45 @@ export function TempEmailManager() {
     setMutatingMessageId(messageId)
     try {
       const res = await fetch(`/api/emails/messages/${messageId}/read`, { method: "POST" })
-      const body = await res.json().catch(() => null)
+      const body = await readOptionalJson<{ error?: string }>(res)
       if (!res.ok) {
-        toast.error(body?.error || "标记已读失败")
+        tempEmailReporter.warn("mark_message_read_failed_response", { messageId, status: res.status })
+        toast.error(getResponseErrorMessage(body, "标记已读失败"))
         return
       }
 
       setMessages((prev) => prev.map((item) => (item.id === messageId ? { ...item, isRead: true } : item)))
-      setMailboxes((prev) => prev.map((item) => {
-        if (item.id !== selectedMailboxId) return item
-        return {
-          ...item,
-          unreadCount: Math.max(0, item.unreadCount - 1),
-        }
-      }))
+      await fetchMailboxes()
       toast.success("邮件已标记为已读")
-    } catch {
-      toast.error("标记已读失败")
+    } catch (error) {
+      tempEmailReporter.report("mark_message_read_failed_exception", error, { messageId })
+      toast.error(getUserFacingErrorMessage(error, "标记已读失败"))
     } finally {
       setMutatingMessageId(null)
     }
   }
 
-  async function handleDeleteMessage(messageId: string, wasUnread: boolean) {
+  async function handleDeleteMessage(messageId: string) {
     setMutatingMessageId(messageId)
     try {
       const res = await fetch(`/api/emails/messages/${messageId}`, { method: "DELETE" })
-      const body = await res.json().catch(() => null)
+      const body = await readOptionalJson<{ error?: string }>(res)
       if (!res.ok) {
-        toast.error(body?.error || "删除邮件失败")
+        tempEmailReporter.warn("delete_message_failed_response", { messageId, status: res.status })
+        toast.error(getResponseErrorMessage(body, "删除邮件失败"))
         return
       }
 
       setMessages((prev) => prev.filter((item) => item.id !== messageId))
-      setMailboxes((prev) => prev.map((item) => {
-        if (item.id !== selectedMailboxId) return item
-        return {
-          ...item,
-          messageCount: Math.max(0, item.messageCount - 1),
-          unreadCount: wasUnread ? Math.max(0, item.unreadCount - 1) : item.unreadCount,
-        }
-      }))
+      await fetchMailboxes()
+      if (selectedMailboxId) {
+        await fetchMessages(selectedMailboxId, { silent: true })
+      }
       setPendingDeleteMessage(null)
       toast.success("邮件已删除")
-    } catch {
-      toast.error("删除邮件失败")
+    } catch (error) {
+      tempEmailReporter.report("delete_message_failed_exception", error, { messageId })
+      toast.error(getUserFacingErrorMessage(error, "删除邮件失败"))
     } finally {
       setMutatingMessageId(null)
     }
@@ -333,25 +467,19 @@ export function TempEmailManager() {
     setDeletingMailboxId(mailbox.id)
     try {
       const res = await fetch(`/api/emails/${mailbox.id}`, { method: "DELETE" })
-      const body = await res.json().catch(() => null)
+      const body = await readOptionalJson<{ error?: string }>(res)
       if (!res.ok) {
-        toast.error(body?.error || "删除邮箱失败")
+        tempEmailReporter.warn("delete_mailbox_failed_response", { mailboxId: mailbox.id, status: res.status })
+        toast.error(getResponseErrorMessage(body, "删除邮箱失败"))
         return
       }
 
-      setMailboxes((prev) => prev.filter((item) => item.id !== mailbox.id))
-      setSelectedMailboxId((current) => {
-        if (current !== mailbox.id) return current
-        const next = mailboxes.find((item) => item.id !== mailbox.id)
-        return next?.id ?? null
-      })
-      if (selectedMailboxId === mailbox.id) {
-        setMessages([])
-      }
       setPendingDeleteMailbox(null)
+      await fetchMailboxes()
       toast.success("邮箱已删除")
-    } catch {
-      toast.error("删除邮箱失败")
+    } catch (error) {
+      tempEmailReporter.report("delete_mailbox_failed_exception", error, { mailboxId: mailbox.id })
+      toast.error(getUserFacingErrorMessage(error, "删除邮箱失败"))
     } finally {
       setDeletingMailboxId(null)
     }
@@ -361,8 +489,9 @@ export function TempEmailManager() {
     try {
       await navigator.clipboard.writeText(text)
       toast.success(message)
-    } catch {
-      toast.error("复制失败，请手动复制")
+    } catch (error) {
+      tempEmailReporter.report("copy_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "复制失败，请手动复制"))
     }
   }
 
@@ -417,12 +546,30 @@ export function TempEmailManager() {
                   <RefreshCw className="h-4 w-4" />
                   生成随机前缀
                 </Button>
-                <Button onClick={handleCreateMailbox} disabled={creatingMailbox || !selectedDomain} className="flex-1">
+                <Button onClick={handleCreateMailbox} disabled={!canCreateMailbox} className="flex-1">
                   {creatingMailbox ? "创建中..." : "创建邮箱"}
                 </Button>
               </div>
-              {!selectedDomain && (
-                <p className="text-xs font-medium text-destructive">当前没有可用邮箱域名，请先联系管理员启用。</p>
+              {loadingDomains ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
+                  <p>正在加载可用邮箱域名...</p>
+                  <p className="mt-1">加载完成后即可选择域名并创建邮箱。</p>
+                </div>
+              ) : domainsError ? (
+                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-3 text-xs text-destructive">
+                  <p className="font-medium">邮箱域名暂时不可用</p>
+                  <p className="mt-1">{domainsError}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => fetchDomains()}>
+                    重试加载域名
+                  </Button>
+                </div>
+              ) : !selectedDomain ? (
+                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-3 text-xs text-destructive">
+                  <p className="font-medium">当前没有可用邮箱域名</p>
+                  <p className="mt-1">请先联系管理员启用邮箱域名后再创建。</p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">创建成功后会自动出现在下方列表，你可以直接复制地址并等待来信。</p>
               )}
             </section>
 
@@ -436,13 +583,23 @@ export function TempEmailManager() {
               </div>
 
               {loadingMailboxes ? (
-                <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
-                  正在加载邮箱列表...
+                <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                  <p>正在加载邮箱列表...</p>
+                  <p className="mt-2 text-xs">创建成功后的邮箱会显示在这里，方便继续切换和管理。</p>
+                </div>
+              ) : mailboxesError ? (
+                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-8 text-center text-sm text-destructive">
+                  <p className="font-medium">邮箱列表加载失败</p>
+                  <p className="mt-2">{mailboxesError}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => fetchMailboxes()}>
+                    重试加载邮箱
+                  </Button>
                 </div>
               ) : mailboxes.length === 0 ? (
-                <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                   <p>你还没有临时邮箱。</p>
                   <p className="mt-2">先在上方创建一个邮箱，然后就能开始收信了。</p>
+                  <p className="mt-2 text-xs">创建成功后，这里会显示邮箱地址、未读数量和删除入口。</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -494,38 +651,62 @@ export function TempEmailManager() {
                 <CardTitle className="break-all text-base font-mono">
                   {selectedMailbox?.emailAddress || "邮件列表"}
                 </CardTitle>
-                <CardDescription>
-                  {selectedMailbox
-                    ? `当前邮箱共有 ${selectedMailbox.messageCount} 封邮件，未读 ${selectedMailbox.unreadCount} 封。`
-                    : "先从左侧选择一个邮箱，再查看收到的邮件。"}
-                </CardDescription>
+                <CardDescription>{messagePanelDescription}</CardDescription>
               </div>
               {selectedMailbox && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCopy(selectedMailbox.emailAddress, "邮箱地址已复制")}
-                >
-                  <Copy className="h-4 w-4" />
-                  复制邮箱地址
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void fetchMessages(selectedMailbox.id)}
+                    disabled={loadingMessages}
+                  >
+                    <RefreshCw className={`h-4 w-4${loadingMessages ? " animate-spin" : ""}`} />
+                    刷新邮件
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopy(selectedMailbox.emailAddress, "邮箱地址已复制")}
+                  >
+                    <Copy className="h-4 w-4" />
+                    复制邮箱地址
+                  </Button>
+                </div>
               )}
             </div>
           </CardHeader>
           <CardContent>
             {!selectedMailbox ? (
-              <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
                 <p>暂未选择邮箱。</p>
-                <p className="mt-2">选择左侧邮箱，或先创建一个新的临时邮箱。</p>
+                <p className="mt-2">{noMailboxSelectionMessage}</p>
               </div>
             ) : loadingMessages ? (
-              <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-                正在加载邮件...
+              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
+                <p>正在加载邮件...</p>
+                <p className="mt-2 text-xs">页面停留期间会自动刷新；你也可以手动刷新当前邮箱。</p>
+              </div>
+            ) : messagesError ? (
+              <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-12 text-center text-sm text-destructive">
+                <p className="font-medium">邮件加载失败</p>
+                <p className="mt-2">{messagesError}</p>
+                <p className="mt-2 text-xs text-destructive/80">你可以立即重试，或稍后刷新当前邮箱再查看。</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => selectedMailboxId && void fetchMessages(selectedMailboxId)}
+                  disabled={!canRetryMessages}
+                >
+                  重试加载邮件
+                </Button>
               </div>
             ) : messages.length === 0 ? (
-              <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
                 <p>这个邮箱暂时还没有收到邮件。</p>
-                <p className="mt-2">复制上方邮箱地址，去注册或接收验证邮件后再回来查看。</p>
+                <p className="mt-2">{emptyMailboxMessage}</p>
               </div>
             ) : isDesktop ? (
               <div className="overflow-x-auto rounded-lg border">
@@ -702,7 +883,7 @@ export function TempEmailManager() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => pendingDeleteMessage && handleDeleteMessage(pendingDeleteMessage.id, !pendingDeleteMessage.isRead)}
+              onClick={() => pendingDeleteMessage && handleDeleteMessage(pendingDeleteMessage.id)}
               disabled={!!mutatingMessageId}
             >
               {mutatingMessageId === pendingDeleteMessage?.id ? "删除中..." : "删除邮件"}

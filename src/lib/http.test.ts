@@ -65,7 +65,7 @@ describe("isRequestOriginAllowed", () => {
 })
 
 describe("isSelfShortenTarget", () => {
-  it("blocks URLs containing NEXT_PUBLIC_APP_URL", () => {
+  it("blocks direct self-target URLs and nested redirect params", () => {
     const oldNextPublic = process.env.NEXT_PUBLIC_APP_URL
     process.env.NEXT_PUBLIC_APP_URL = "https://short.ly"
     try {
@@ -81,11 +81,21 @@ describe("isSelfShortenTarget", () => {
     }
   })
 
-  it("blocks URLs containing request host", () => {
+  it("matches site URLs by host and nested base path", () => {
+    expect(isSelfShortenTarget("https://short.ly/app/abc", undefined, "https://short.ly/app")).toBe(true)
+    expect(isSelfShortenTarget("https://short.ly/other", undefined, "https://short.ly/app")).toBe(false)
+  })
+
+  it("matches the exact request host and ignores different ports or similar hosts", () => {
     const headers = new Headers({ host: "short.local:3000" })
-    expect(isSelfShortenTarget("https://short.local:3000/path", headers)).toBe(true)
-    expect(isSelfShortenTarget("https://example.com?u=short.local:3000", headers)).toBe(true)
-    expect(isSelfShortenTarget("https://example.com/path", headers)).toBe(false)
+    expect(isSelfShortenTarget("http://short.local:3000/path", headers)).toBe(true)
+    expect(isSelfShortenTarget("https://short.local:4000/path", headers)).toBe(false)
+    expect(isSelfShortenTarget("https://short.local.evil.example/path", headers)).toBe(false)
+  })
+
+  it("ignores plain string mentions in query params", () => {
+    const headers = new Headers({ host: "short.local:3000" })
+    expect(isSelfShortenTarget("https://example.com?u=short.local:3000", headers)).toBe(false)
   })
 })
 

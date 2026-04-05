@@ -12,5 +12,11 @@ interface UrlShortenerProps {
 }
 
 export function UrlShortener({ user }: UrlShortenerProps) {
-  return <ShortLinkCreator user={user} />
+  return (
+    <section className="space-y-6">
+      <div className="mx-auto max-w-3xl w-full md:w-xl space-y-4">
+        <ShortLinkCreator user={user} mode="homepage" />
+      </div>
+    </section>
+  )
 }

@@ -10,7 +10,26 @@ import {
   user,
 } from "@/lib/schema"
 import { getAllowedEmailDomain, parseDomainHost } from "@/lib/site-domains"
+import { reportDiagnostic } from "@/lib/observability"
 import { sendInboundEmailTelegramNotification } from "@/lib/telegram"
+
+function reportTempEmailWarning(event: string, details: Record<string, unknown>) {
+  reportDiagnostic({
+    scope: "temp_email",
+    event,
+    details,
+    level: "warn",
+  })
+}
+
+function reportTempEmailError(event: string, details: Record<string, unknown>, error: unknown) {
+  reportDiagnostic({
+    scope: "temp_email",
+    event,
+    details,
+    error,
+  })
+}
 
 function normalizeLocalPart(value: string): string | null {
   const normalized = value.trim().toLowerCase()
@@ -59,6 +78,19 @@ type InboundEmailPayload = {
   attachments?: InboundAttachment[]
 }
 
+type InboundMailboxRecord = {
+  id: string
+  userId: string
+  emailAddress: string
+}
+
+type InboundEmailContext = {
+  toEmail: string
+  normalizedMessageId: string | null
+  attachments: InboundAttachment[]
+  receivedAt: Date
+}
+
 function normalizeAttachments(payload: InboundEmailPayload) {
   return Array.isArray(payload.attachments) ? payload.attachments : []
 }
@@ -68,6 +100,26 @@ function normalizeReceivedAt(value?: string) {
   return Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt
 }
 
+function buildInboundEmailContext(payload: InboundEmailPayload): InboundEmailContext {
+  return {
+    toEmail: payload.to.trim().toLowerCase(),
+    normalizedMessageId: payload.messageId?.trim() || null,
+    attachments: normalizeAttachments(payload),
+    receivedAt: normalizeReceivedAt(payload.date),
+  }
+}
+
+function buildStoredAttachment(attachment: InboundAttachment) {
+  return {
+    id: crypto.randomUUID(),
+    filename: attachment.filename?.trim() || "untitled",
+    mimeType: attachment.mimeType?.trim() || "application/octet-stream",
+    r2Path: attachment.r2Path?.trim() || "",
+    size: Number.isFinite(attachment.size) ? Math.max(0, Math.floor(attachment.size ?? 0)) : 0,
+    createdAt: new Date(),
+  }
+}
+
 async function insertEmailAttachments(messageId: string, attachments: InboundAttachment[]) {
   if (attachments.length === 0) {
     return
@@ -75,13 +127,116 @@ async function insertEmailAttachments(messageId: string, attachments: InboundAtt
 
   await db.insert(tempEmailAttachment).values(
     attachments.map((attachment) => ({
-      id: crypto.randomUUID(),
+      ...buildStoredAttachment(attachment),
       messageId,
-      filename: attachment.filename?.trim() || "untitled",
-      mimeType: attachment.mimeType?.trim() || "application/octet-stream",
-      r2Path: attachment.r2Path?.trim() || "",
-      size: Number.isFinite(attachment.size) ? Math.max(0, Math.floor(attachment.size ?? 0)) : 0,
-      createdAt: new Date(),
+    }))
+  )
+}
+
+async function findInboundMailbox(toEmail: string) {
+  return db
+    .select({ id: tempMailbox.id, userId: tempMailbox.userId, emailAddress: tempMailbox.emailAddress })
+    .from(tempMailbox)
+    .where(eq(tempMailbox.emailAddress, toEmail))
+    .get()
+}
+
+async function findDuplicateArchivedInboundEmail(toEmail: string, normalizedMessageId: string | null) {
+  if (!normalizedMessageId) {
+    return null
+  }
+
+  return db
+    .select({ id: tempEmailArchive.id })
+    .from(tempEmailArchive)
+    .where(and(eq(tempEmailArchive.toEmail, toEmail), eq(tempEmailArchive.messageId, normalizedMessageId)))
+    .get()
+}
+
+async function findDuplicateMailboxMessage(mailboxId: string, normalizedMessageId: string | null) {
+  if (!normalizedMessageId) {
+    return null
+  }
+
+  return db
+    .select({ id: tempEmailMessage.id })
+    .from(tempEmailMessage)
+    .where(and(eq(tempEmailMessage.mailboxId, mailboxId), eq(tempEmailMessage.messageId, normalizedMessageId)))
+    .get()
+}
+
+async function archiveInboundEmail(payload: InboundEmailPayload, context: InboundEmailContext) {
+  const duplicateArchive = await findDuplicateArchivedInboundEmail(context.toEmail, context.normalizedMessageId)
+
+  if (duplicateArchive) {
+    return { data: { archiveId: duplicateArchive.id, duplicated: true, archived: true } }
+  }
+
+  const archiveId = crypto.randomUUID()
+  await db.insert(tempEmailArchive).values({
+    id: archiveId,
+    toEmail: context.toEmail,
+    messageId: context.normalizedMessageId,
+    from: payload.from,
+    fromName: payload.fromName?.trim() || null,
+    subject: payload.subject?.trim() || "",
+    text: payload.text || "",
+    html: payload.html || "",
+    receivedAt: context.receivedAt,
+    ccJson: payload.cc || "[]",
+    replyToJson: payload.replyTo || "[]",
+    headersJson: payload.headers || "[]",
+    failureReason: "mailbox_not_found",
+    createdAt: new Date(),
+  })
+  await insertArchiveAttachments(archiveId, context.attachments)
+
+  return { data: { archiveId, duplicated: false, archived: true } }
+}
+
+async function deliverInboundEmailToMailbox(
+  mailbox: InboundMailboxRecord,
+  payload: InboundEmailPayload,
+  context: InboundEmailContext
+) {
+  const duplicate = await findDuplicateMailboxMessage(mailbox.id, context.normalizedMessageId)
+
+  if (duplicate) {
+    return { data: { mailboxId: mailbox.id, messageId: duplicate.id, duplicated: true, archived: false } }
+  }
+
+  const messageRowId = crypto.randomUUID()
+  await db.insert(tempEmailMessage).values({
+    id: messageRowId,
+    mailboxId: mailbox.id,
+    messageId: context.normalizedMessageId,
+    from: payload.from,
+    fromName: payload.fromName?.trim() || null,
+    subject: payload.subject?.trim() || "",
+    text: payload.text || "",
+    html: payload.html || "",
+    receivedAt: context.receivedAt,
+    isRead: false,
+    ccJson: payload.cc || "[]",
+    replyToJson: payload.replyTo || "[]",
+    headersJson: payload.headers || "[]",
+    createdAt: new Date(),
+  })
+  await insertEmailAttachments(messageRowId, context.attachments)
+  await notifyMailboxOwnerOnTelegram(mailbox, payload, context.attachments)
+
+  return { data: { mailboxId: mailbox.id, messageId: messageRowId, duplicated: false, archived: false } }
+}
+
+async function insertArchiveAttachments(archiveId: string, attachments: InboundAttachment[]) {
+  if (attachments.length === 0) {
+    return
+  }
+
+  await db.insert(tempEmailArchiveAttachment).values(
+    attachments.map((attachment) => ({
+      ...buildStoredAttachment(attachment),
+      archiveId,
     }))
   )
 }
@@ -91,17 +246,26 @@ async function notifyMailboxOwnerOnTelegram(
   payload: InboundEmailPayload,
   attachments: InboundAttachment[]
 ) {
-  const binding = await db
-    .select({ chatId: telegramBinding.chatId })
-    .from(telegramBinding)
-    .where(eq(telegramBinding.userId, mailbox.userId))
-    .get()
-
-  if (!binding?.chatId || !process.env.TELEGRAM_BOT_TOKEN?.trim()) {
-    return
-  }
-
   try {
+    const binding = await db
+      .select({ chatId: telegramBinding.chatId })
+      .from(telegramBinding)
+      .where(eq(telegramBinding.userId, mailbox.userId))
+      .get()
+
+    if (!binding?.chatId) {
+      return
+    }
+
+    if (!process.env.TELEGRAM_BOT_TOKEN?.trim()) {
+      reportTempEmailWarning("telegram_notification_skipped", {
+        reason: "missing_bot_token",
+        userId: mailbox.userId,
+        emailAddress: mailbox.emailAddress,
+      })
+      return
+    }
+
     await sendInboundEmailTelegramNotification({
       chatId: binding.chatId,
       emailAddress: mailbox.emailAddress,
@@ -113,27 +277,18 @@ async function notifyMailboxOwnerOnTelegram(
       attachmentsCount: attachments.length,
     })
   } catch (error) {
-    console.error("Failed to send Telegram inbound email notification:", error)
+    reportTempEmailError(
+      "telegram_notification_failed",
+      {
+        userId: mailbox.userId,
+        emailAddress: mailbox.emailAddress,
+        messageId: payload.messageId?.trim() || null,
+      },
+      error
+    )
   }
 }
 
-async function insertArchiveAttachments(archiveId: string, attachments: InboundAttachment[]) {
-  if (attachments.length === 0) {
-    return
-  }
-
-  await db.insert(tempEmailArchiveAttachment).values(
-    attachments.map((attachment) => ({
-      id: crypto.randomUUID(),
-      archiveId,
-      filename: attachment.filename?.trim() || "untitled",
-      mimeType: attachment.mimeType?.trim() || "application/octet-stream",
-      r2Path: attachment.r2Path?.trim() || "",
-      size: Number.isFinite(attachment.size) ? Math.max(0, Math.floor(attachment.size ?? 0)) : 0,
-      createdAt: new Date(),
-    }))
-  )
-}
 
 export async function createTempMailboxForUser(userId: string, emailAddress: string) {
   const parsed = parseEmailAddress(emailAddress)
@@ -305,85 +460,14 @@ export async function deleteTempMailbox(userId: string, mailboxId: string) {
 }
 
 export async function storeInboundEmail(payload: InboundEmailPayload) {
-  const toEmail = payload.to.trim().toLowerCase()
-  const mailbox = await db
-    .select({ id: tempMailbox.id, userId: tempMailbox.userId, emailAddress: tempMailbox.emailAddress })
-    .from(tempMailbox)
-    .where(eq(tempMailbox.emailAddress, toEmail))
-    .get()
-
-  const attachments = normalizeAttachments(payload)
-  const receivedAt = normalizeReceivedAt(payload.date)
-  const normalizedMessageId = payload.messageId?.trim() || null
+  const context = buildInboundEmailContext(payload)
+  const mailbox = await findInboundMailbox(context.toEmail)
 
   if (!mailbox) {
-    const duplicateArchive = normalizedMessageId
-      ? await db
-        .select({ id: tempEmailArchive.id })
-        .from(tempEmailArchive)
-        .where(and(eq(tempEmailArchive.toEmail, toEmail), eq(tempEmailArchive.messageId, normalizedMessageId)))
-        .get()
-      : null
-
-    if (duplicateArchive) {
-      return { data: { archiveId: duplicateArchive.id, duplicated: true, archived: true } }
-    }
-
-    const archiveId = crypto.randomUUID()
-    await db.insert(tempEmailArchive).values({
-      id: archiveId,
-      toEmail,
-      messageId: normalizedMessageId,
-      from: payload.from,
-      fromName: payload.fromName?.trim() || null,
-      subject: payload.subject?.trim() || "",
-      text: payload.text || "",
-      html: payload.html || "",
-      receivedAt,
-      ccJson: payload.cc || "[]",
-      replyToJson: payload.replyTo || "[]",
-      headersJson: payload.headers || "[]",
-      failureReason: "mailbox_not_found",
-      createdAt: new Date(),
-    })
-    await insertArchiveAttachments(archiveId, attachments)
-
-    return { data: { archiveId, duplicated: false, archived: true } }
+    return archiveInboundEmail(payload, context)
   }
 
-  const duplicate = normalizedMessageId
-    ? await db
-      .select({ id: tempEmailMessage.id })
-      .from(tempEmailMessage)
-      .where(and(eq(tempEmailMessage.mailboxId, mailbox.id), eq(tempEmailMessage.messageId, normalizedMessageId)))
-      .get()
-    : null
-
-  if (duplicate) {
-    return { data: { mailboxId: mailbox.id, messageId: duplicate.id, duplicated: true, archived: false } }
-  }
-
-  const messageRowId = crypto.randomUUID()
-  await db.insert(tempEmailMessage).values({
-    id: messageRowId,
-    mailboxId: mailbox.id,
-    messageId: normalizedMessageId,
-    from: payload.from,
-    fromName: payload.fromName?.trim() || null,
-    subject: payload.subject?.trim() || "",
-    text: payload.text || "",
-    html: payload.html || "",
-    receivedAt,
-    isRead: false,
-    ccJson: payload.cc || "[]",
-    replyToJson: payload.replyTo || "[]",
-    headersJson: payload.headers || "[]",
-    createdAt: new Date(),
-  })
-  await insertEmailAttachments(messageRowId, attachments)
-  await notifyMailboxOwnerOnTelegram(mailbox, payload, attachments)
-
-  return { data: { mailboxId: mailbox.id, messageId: messageRowId, duplicated: false, archived: false } }
+  return deliverInboundEmailToMailbox(mailbox, payload, context)
 }
 
 export async function listAllTempMailboxes(page: number, limit: number, search?: string | null) {

@@ -49,14 +49,8 @@ export async function GET(
       eventType: "redirect_blocked_expired",
       statusCode: 410,
     })
-    await db.delete(shortLink).where(eq(shortLink.id, link.id))
-    await createLinkLog({
-      ...logBase,
-      eventType: "link_auto_deleted_expired",
-      statusCode: 410,
-    })
 
-    return NextResponse.json({ error: "This link has expired and has been removed." }, { status: 410 })
+    return NextResponse.json({ error: "This link has expired." }, { status: 410 })
   }
 
   if (status.expiredByClicks) {
@@ -65,15 +59,9 @@ export async function GET(
       eventType: "redirect_blocked_max_clicks",
       statusCode: 410,
     })
-    await db.delete(shortLink).where(eq(shortLink.id, link.id))
-    await createLinkLog({
-      ...logBase,
-      eventType: "link_auto_deleted_max_clicks",
-      statusCode: 410,
-    })
 
     return NextResponse.json(
-      { error: "This link reached the click limit and has been removed." },
+      { error: "This link reached the click limit." },
       { status: 410 }
     )
   }
@@ -102,13 +90,7 @@ export async function GET(
         eventType: "redirect_blocked_expired",
         statusCode: 410,
       })
-      await db.delete(shortLink).where(eq(shortLink.id, latest.id))
-      await createLinkLog({
-        ...logBase,
-        eventType: "link_auto_deleted_expired",
-        statusCode: 410,
-      })
-      return NextResponse.json({ error: "This link has expired and has been removed." }, { status: 410 })
+      return NextResponse.json({ error: "This link has expired." }, { status: 410 })
     }
 
     if (latestStatus.expiredByClicks) {
@@ -117,14 +99,8 @@ export async function GET(
         eventType: "redirect_blocked_max_clicks",
         statusCode: 410,
       })
-      await db.delete(shortLink).where(eq(shortLink.id, latest.id))
-      await createLinkLog({
-        ...logBase,
-        eventType: "link_auto_deleted_max_clicks",
-        statusCode: 410,
-      })
       return NextResponse.json(
-        { error: "This link reached the click limit and has been removed." },
+        { error: "This link reached the click limit." },
         { status: 410 }
       )
     }

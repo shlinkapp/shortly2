@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
+import { createClientErrorReporter, getUserFacingErrorMessage } from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +19,8 @@ interface AuthFormProps {
 }
 
 type Step = "email" | "otp" | "add-passkey"
+
+const authFormReporter = createClientErrorReporter("auth_form")
 
 export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }: AuthFormProps) {
   const router = useRouter()
@@ -40,11 +43,15 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" })
       if (res.error) {
-        toast.error(res.error.message)
+        authFormReporter.warn("send_otp_failed_response", { mode, email })
+        toast.error(getUserFacingErrorMessage(res.error, "发送验证码失败"))
       } else {
         setStep("otp")
         toast.success("验证码已发送")
       }
+    } catch (error) {
+      authFormReporter.report("send_otp_failed_exception", error, { mode, email })
+      toast.error(getUserFacingErrorMessage(error, "发送验证码失败"))
     } finally {
       setLoading(false)
     }
@@ -56,7 +63,8 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.signIn.emailOtp({ email, otp })
       if (res.error) {
-        toast.error(res.error.message)
+        authFormReporter.warn("verify_otp_failed_response", { mode, email })
+        toast.error(getUserFacingErrorMessage(res.error, "验证码验证失败"))
       } else {
         if (mode === "register" && supportsPasskey) {
           setStep("add-passkey")
@@ -65,6 +73,9 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
           finish()
         }
       }
+    } catch (error) {
+      authFormReporter.report("verify_otp_failed_exception", error, { mode, email })
+      toast.error(getUserFacingErrorMessage(error, "验证码验证失败"))
     } finally {
       setLoading(false)
     }
@@ -73,7 +84,14 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
   async function handleGithub() {
     setLoading(true)
     try {
-      await authClient.signIn.social({ provider: "github", callbackURL: callbackUrl })
+      const res = await authClient.signIn.social({ provider: "github", callbackURL: callbackUrl })
+      if (res?.error) {
+        authFormReporter.warn("sign_in_github_failed_response", { mode })
+        toast.error(getUserFacingErrorMessage(res.error, "GitHub 登录失败"))
+      }
+    } catch (error) {
+      authFormReporter.report("sign_in_github_failed_exception", error, { mode })
+      toast.error(getUserFacingErrorMessage(error, "GitHub 登录失败"))
     } finally {
       setLoading(false)
     }
@@ -84,12 +102,15 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.signIn.passkey()
       if (res?.error) {
-        const message = typeof res.error.message === "string" ? res.error.message : "Passkey 登录失败"
-        toast.error(message)
+        authFormReporter.warn("sign_in_passkey_failed_response", { mode })
+        toast.error(getUserFacingErrorMessage(res.error, "Passkey 登录失败"))
       } else {
         toast.success("登录成功")
         finish()
       }
+    } catch (error) {
+      authFormReporter.report("sign_in_passkey_failed_exception", error, { mode })
+      toast.error(getUserFacingErrorMessage(error, "Passkey 登录失败"))
     } finally {
       setLoading(false)
     }
@@ -100,11 +121,14 @@ export function AuthForm({ mode, enableEmail, enableGithub, callbackUrl = "/" }:
     try {
       const res = await authClient.passkey.addPasskey()
       if (res?.error) {
-        const message = typeof res.error.message === "string" ? res.error.message : "无法保存 Passkey"
-        toast.error(message)
+        authFormReporter.warn("add_passkey_failed_response", { mode, email })
+        toast.error(getUserFacingErrorMessage(res.error, "无法保存 Passkey"))
       } else {
         toast.success("Passkey 已保存 — 您现在可以使用它立即登录")
       }
+    } catch (error) {
+      authFormReporter.report("add_passkey_failed_exception", error, { mode, email })
+      toast.error(getUserFacingErrorMessage(error, "无法保存 Passkey"))
     } finally {
       setLoading(false)
       finish()

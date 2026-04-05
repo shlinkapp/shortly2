@@ -1,6 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
+import {
+  createClientErrorReporter,
+  getResponseErrorMessage,
+  getUserFacingErrorMessage,
+  readOptionalJson,
+} from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,23 +39,64 @@ interface ShortenResult {
   maxClicks?: number
 }
 
+type ShortLinkCreatorMode = "homepage" | "dashboard"
+
 interface ShortLinkCreatorProps {
   user: CreatorUser | null
   onCreated?: (result: ShortenResult) => void | Promise<void>
-  showContainer?: boolean
-  title?: string
-  description?: string
-  showLoginHint?: boolean
+  mode?: ShortLinkCreatorMode
+}
+
+const shortLinkCreatorReporter = createClientErrorReporter("short_link_creator")
+
+const creatorModeMeta: Record<
+  ShortLinkCreatorMode,
+  {
+    showContainer: boolean
+    getTitle: (user: CreatorUser | null) => string
+    getDescription: (user: CreatorUser | null) => string
+    showLoginHint: boolean
+  }
+> = {
+  homepage: {
+    showContainer: false,
+    getTitle: () => "快速创建短链",
+    getDescription: (user) =>
+      user
+        ? "输入长链接后即可快速生成短链；你当前已登录，也可以继续使用更多高级规则。"
+        : "先快速生成可分享的短链；登录后再按需启用自定义后缀、有效期和访问限制。",
+    showLoginHint: true,
+  },
+  dashboard: {
+    showContainer: true,
+    getTitle: () => "创建短链",
+    getDescription: () => "粘贴长链接并设置可选项；创建后的短链会显示在右侧，方便继续管理。",
+    showLoginHint: false,
+  },
 }
 
 export function ShortLinkCreator({
   user,
   onCreated,
-  showContainer = false,
-  title = "创建短链",
-  description = "粘贴长链接后即可生成短链；登录后还能选择域名、自定义后缀和访问规则。",
-  showLoginHint = true,
+  mode = "dashboard",
 }: ShortLinkCreatorProps) {
+  const isHomepageMode = mode === "homepage"
+  const modeMeta = creatorModeMeta[mode]
+  const resolvedTitle = modeMeta.getTitle(user)
+  const resolvedDescription = modeMeta.getDescription(user)
+  const resolvedShowLoginHint = modeMeta.showLoginHint
+  const showContainer = modeMeta.showContainer
+  const submitLabel = isHomepageMode ? "立即生成短链" : "创建短链"
+  const loginCtaLabel = isHomepageMode ? "登录后解锁更多能力" : "登录后使用更多选项"
+  const successHint = isHomepageMode
+    ? "现在可以复制短链、立即打开验证，或继续缩短下一条链接。"
+    : "现在可以复制短链、打开测试，或继续创建下一条。"
+  const anonymousResultHint = user
+    ? null
+    : isHomepageMode
+      ? "匿名创建的链接会使用默认域名，并受访问次数限制。登录后可自定义更多规则。"
+      : "匿名创建的链接会使用默认域名，并受访问次数限制。登录后可自定义更多规则。"
+
   const [url, setUrl] = useState("")
   const [customSlug, setCustomSlug] = useState("")
   const [maxClicks, setMaxClicks] = useState<string>("")
@@ -70,9 +117,12 @@ export function ShortLinkCreator({
     void (async () => {
       try {
         const res = await fetch("/api/domains")
-        const body = await res.json().catch(() => null) as DomainsResponse | null
+        const body = await readOptionalJson<DomainsResponse & { error?: string }>(res)
         if (!res.ok) {
-          toast.error((body as { error?: string } | null)?.error || "加载短链域名失败")
+          shortLinkCreatorReporter.warn("fetch_domains_failed_response", { status: res.status })
+          if (!cancelled) {
+            toast.error(getResponseErrorMessage(body, "加载短链域名失败"))
+          }
           return
         }
 
@@ -80,9 +130,10 @@ export function ShortLinkCreator({
         const domains = body?.shortDomains || []
         setShortDomains(domains)
         setSelectedDomain((current) => current || domains.find((item) => item.isDefault)?.host || domains[0]?.host || "")
-      } catch {
+      } catch (error) {
+        shortLinkCreatorReporter.report("fetch_domains_failed_exception", error)
         if (!cancelled) {
-          toast.error("加载短链域名失败")
+          toast.error(getUserFacingErrorMessage(error, "加载短链域名失败"))
         }
       } finally {
         if (!cancelled) {
@@ -123,16 +174,27 @@ export function ShortLinkCreator({
             expiresIn: expiresIn === "none" ? undefined : expiresIn,
           }),
         })
-        const data = await res.json()
+        const data = await readOptionalJson<ShortenResult & { error?: string }>(res)
         if (!res.ok) {
-          toast.error(data.error || "创建短链失败")
+          shortLinkCreatorReporter.warn("create_short_link_failed_response", {
+            status: res.status,
+            isAuthenticated: Boolean(user),
+          })
+          toast.error(getResponseErrorMessage(data, "创建短链失败"))
+          return
+        }
+        if (!data) {
+          toast.error("创建短链失败")
           return
         }
         setResult(data)
         toast.success("短链已创建")
         await onCreated?.(data)
-      } catch {
-        toast.error("创建短链失败，请稍后重试")
+      } catch (error) {
+        shortLinkCreatorReporter.report("create_short_link_failed_exception", error, {
+          isAuthenticated: Boolean(user),
+        })
+        toast.error(getUserFacingErrorMessage(error, "创建短链失败，请稍后重试"))
       }
     })
   }
@@ -142,8 +204,9 @@ export function ShortLinkCreator({
     try {
       await navigator.clipboard.writeText(result.shortUrl)
       toast.success("短链已复制")
-    } catch {
-      toast.error("复制失败，请手动复制")
+    } catch (error) {
+      shortLinkCreatorReporter.report("copy_short_link_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "复制失败，请手动复制"))
     }
   }
 
@@ -192,6 +255,7 @@ export function ShortLinkCreator({
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">默认使用管理员配置的短链域名；你也可以在这里切换到其他可用域名。</p>
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="short-link-custom-slug" className="text-sm font-medium">自定义后缀</label>
@@ -203,6 +267,7 @@ export function ShortLinkCreator({
                     className="h-10 bg-background"
                     maxLength={50}
                   />
+                  <p className="text-xs text-muted-foreground">不填写时系统会自动生成；适合活动页、品牌词或便于记忆的链接。</p>
                 </div>
               </div>
 
@@ -218,6 +283,7 @@ export function ShortLinkCreator({
                     className="h-10 bg-background"
                     min="1"
                   />
+                  <p className="text-xs text-muted-foreground">适合限量传播、一次性口令或需要在达到阈值后自动失效的场景。</p>
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="short-link-expires-in" className="text-sm font-medium">有效期</label>
@@ -237,6 +303,7 @@ export function ShortLinkCreator({
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">适合短期活动、临时分享或需要自动回收的链接。</p>
                 </div>
               </div>
             </>
@@ -254,13 +321,13 @@ export function ShortLinkCreator({
                 className="h-10 flex-1"
               >
                 <Scissors className="h-4 w-4" />
-                {isPending ? "创建中..." : "创建短链"}
+                {isPending ? "创建中..." : submitLabel}
               </Button>
               {!user && (
                 <Button variant="outline" asChild className="h-10 shrink-0">
                   <Link href="/login">
                     <LogIn className="h-4 w-4" />
-                    登录后使用更多选项
+                    {loginCtaLabel}
                   </Link>
                 </Button>
               )}
@@ -277,9 +344,7 @@ export function ShortLinkCreator({
             <div className="space-y-3 rounded-lg border bg-background p-4">
               <div>
                 <p className="text-sm font-medium">短链已创建</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  现在可以复制短链、打开测试，或继续创建下一条。
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{successHint}</p>
               </div>
               <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 px-3 py-3 sm:flex-row sm:items-center">
                 <a
@@ -307,8 +372,11 @@ export function ShortLinkCreator({
                   </Button>
                 </div>
               </div>
+              {anonymousResultHint && (
+                <p className="text-xs text-muted-foreground">{anonymousResultHint}</p>
+              )}
               {!user && result.maxClicks && (
-                <p className="text-xs text-destructive font-medium">
+                <p className="text-xs font-medium text-destructive">
                   匿名用户生成的链接在 {result.maxClicks} 次访问后失效，登录后可解除该限制。
                 </p>
               )}
@@ -317,7 +385,7 @@ export function ShortLinkCreator({
         </div>
       )}
 
-      {!user && !showOptions && showLoginHint && (
+      {!user && !showOptions && resolvedShowLoginHint && (
         <p className="text-center text-sm text-muted-foreground">
           <Link href="/login" className="font-medium text-foreground hover:underline">
             登录
@@ -335,8 +403,8 @@ export function ShortLinkCreator({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle className="text-base">{resolvedTitle}</CardTitle>
+        <CardDescription>{resolvedDescription}</CardDescription>
       </CardHeader>
       <CardContent>{content}</CardContent>
     </Card>

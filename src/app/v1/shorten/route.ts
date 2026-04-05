@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db, initDb } from "@/lib/db"
-import { shortLink } from "@/lib/schema"
-import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
+import { initDb } from "@/lib/db"
 import { getClientIpFromHeaders } from "@/lib/ip"
-import { checkRateLimit } from "@/lib/rate-limit"
-import { createLinkLog } from "@/lib/link-logs"
-import { buildShortUrl, isSelfShortenTarget } from "@/lib/http"
-import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
+import { SHORT_LINK_EXPIRES_IN_VALUES } from "@/lib/short-link-expiration"
 import { z } from "zod"
 import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
-import { getAllowedShortDomain } from "@/lib/site-domains"
 import { getSiteSettings } from "@/lib/site-settings"
-import { and, eq } from "drizzle-orm"
+import { createShortLink } from "@/lib/shorten"
 
 const openApiShortenSchema = z.object({
   url: z.string().min(1),
@@ -41,110 +35,34 @@ export async function POST(req: NextRequest) {
 
   const { url, customSlug, domain, expiresIn, maxClicks } = parsedBody.data
 
-  if (!url) {
-    return NextResponse.json({ error: "链接无效：链接不能为空" }, { status: 400 })
-  }
-
-  const urlValidation = validateUrl(url)
-  if (!urlValidation.valid) {
-    return NextResponse.json({ error: `链接无效：${urlValidation.reason}` }, { status: 400 })
-  }
-
-  const shortDomain = await getAllowedShortDomain(domain)
-  if (!shortDomain) {
-    return NextResponse.json({ error: "No enabled short-link domain is available" }, { status: 400 })
-  }
-
-  if (isSelfShortenTarget(url, req.headers, `https://${shortDomain.host}`)) {
-    return NextResponse.json(
-      { error: "链接无效：该链接包含本站域名（NEXT_PUBLIC_APP_URL 或当前 Host），为避免循环跳转不允许缩短。" },
-      { status: 400 }
-    )
-  }
-
-  if (customSlug && !isValidSlug(customSlug)) {
-    return NextResponse.json(
-      { error: "Invalid custom slug. Use only letters, numbers, hyphens, and underscores (max 50 chars)." },
-      { status: 400 }
-    )
-  }
-
-  const slug = customSlug || generateSlug()
-
-  const existingSlug = await db
-    .select({ id: shortLink.id })
-    .from(shortLink)
-    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
-    .get()
-  if (existingSlug) {
-    return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
-  }
-
-  const creatorIp = getClientIpFromHeaders(req.headers)
-  const rateLimitResult = await checkRateLimit({
-    ip: creatorIp,
-    userId: authResult.data.userId,
+  const result = await createShortLink({
+    url,
+    customSlug,
+    domain,
+    expiresIn,
+    maxClicks,
+    actorUserId: authResult.data.userId,
+    creatorIp: getClientIpFromHeaders(req.headers),
     allowAnonymous: settings?.allowAnonymous ?? true,
     anonLimit: settings?.anonMaxLinksPerHour ?? 3,
+    anonMaxClicks: settings?.anonMaxClicks ?? 10,
     userLimit: settings?.userMaxLinksPerHour ?? 50,
+    requestHeaders: req.headers,
+    logEventType: "link_created_api",
+    messages: {
+      invalidUrlPrefix: "链接无效：",
+      noDomainError: "No enabled short-link domain is available",
+      selfShortenError: "链接无效：该链接包含本站域名（NEXT_PUBLIC_APP_URL 或当前 Host），为避免循环跳转不允许缩短。",
+      invalidCustomSlugError: "Invalid custom slug. Use only letters, numbers, hyphens, and underscores (max 50 chars).",
+      duplicateSlugError: "This custom slug is already taken",
+    },
   })
 
-  if (!rateLimitResult.success) {
-    return NextResponse.json(
-      { error: rateLimitResult.error },
-      { status: rateLimitResult.status }
-    )
-  }
-
-  let finalMaxClicks: number | null = null
-  let finalExpiresAt: Date | null = null
-
-  if (typeof maxClicks === "number" && maxClicks > 0) {
-    finalMaxClicks = Math.floor(maxClicks)
-  }
-  if (expiresIn) {
-    finalExpiresAt = resolveShortLinkExpiresAt(expiresIn)
-  }
-
-  const id = crypto.randomUUID()
-
-  try {
-    await db.insert(shortLink).values({
-      id,
-      userId: authResult.data.userId,
-      originalUrl: url,
-      slug,
-      domain: shortDomain.host,
-      clicks: 0,
-      creatorIp,
-      maxClicks: finalMaxClicks,
-      expiresAt: finalExpiresAt,
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes("UNIQUE")) {
-      return NextResponse.json({ error: "This custom slug is already taken" }, { status: 409 })
-    }
-    throw error
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
   await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
 
-  await createLinkLog({
-    linkId: id,
-    linkSlug: slug,
-    ownerUserId: authResult.data.userId,
-    eventType: "link_created_api",
-    referrer: req.headers.get("referer"),
-    userAgent: req.headers.get("user-agent"),
-    ipAddress: creatorIp,
-    statusCode: 201,
-  })
-
-  return NextResponse.json({
-    shortUrl: buildShortUrl(shortDomain.host, slug),
-    slug,
-    domain: shortDomain.host,
-    maxClicks: finalMaxClicks,
-  }, { status: 201 })
+  return NextResponse.json(result.data, { status: 201 })
 }

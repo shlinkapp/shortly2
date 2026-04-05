@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { reportDiagnostic } from "@/lib/observability"
 import { linkLog } from "@/lib/schema"
 
 export type LinkLogEventType =
@@ -23,6 +24,21 @@ interface CreateLinkLogInput {
   statusCode?: number | null
 }
 
+function reportLinkLogFailure(input: CreateLinkLogInput, error: unknown) {
+  reportDiagnostic({
+    scope: "link_log",
+    event: "failed_to_write_event",
+    details: {
+      eventType: input.eventType,
+      linkId: input.linkId,
+      linkSlug: input.linkSlug,
+      ownerUserId: input.ownerUserId,
+      statusCode: input.statusCode ?? null,
+    },
+    error,
+  })
+}
+
 export async function createLinkLog(input: CreateLinkLogInput) {
   try {
     await db.insert(linkLog).values({
@@ -37,6 +53,14 @@ export async function createLinkLog(input: CreateLinkLogInput) {
       statusCode: input.statusCode ?? null,
     })
   } catch (error) {
-    console.error("[link_log] failed to write event", error)
+    reportLinkLogFailure(input, error)
   }
+}
+
+export const linkLogWriter = {
+  create: createLinkLog,
+}
+
+export const linkLogDiagnostics = {
+  reportWriteFailure: reportLinkLogFailure,
 }

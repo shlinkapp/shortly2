@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
-import { parseDomainHost, revalidateSiteDomainsCache } from "@/lib/site-domains"
+import { parseDomainHost, writeDeletedSiteDomain, writeUpdatedSiteDomain } from "@/lib/site-domains"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -78,27 +78,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Domain already exists" }, { status: 409 })
   }
 
-  if (nextIsDefaultShortDomain) {
-    await db.update(siteDomain).set({ isDefaultShortDomain: false })
-  }
-  if (nextIsDefaultEmailDomain) {
-    await db.update(siteDomain).set({ isDefaultEmailDomain: false })
-  }
-
-  await db
-    .update(siteDomain)
-    .set({
-      host: normalizedHost,
-      supportsShortLinks: nextSupportsShortLinks,
-      supportsTempEmail: nextSupportsTempEmail,
-      isActive: nextIsActive,
-      isDefaultShortDomain: nextIsDefaultShortDomain,
-      isDefaultEmailDomain: nextIsDefaultEmailDomain,
-    })
-    .where(eq(siteDomain.id, id))
-
-  const updated = await db.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
-  revalidateSiteDomainsCache()
+  const updated = await writeUpdatedSiteDomain(id, {
+    host: normalizedHost,
+    supportsShortLinks: nextSupportsShortLinks,
+    supportsTempEmail: nextSupportsTempEmail,
+    isActive: nextIsActive,
+    isDefaultShortDomain: nextIsDefaultShortDomain,
+    isDefaultEmailDomain: nextIsDefaultEmailDomain,
+  })
   return NextResponse.json({ data: updated })
 }
 
@@ -124,7 +111,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Default domains cannot be deleted" }, { status: 400 })
   }
 
-  await db.delete(siteDomain).where(eq(siteDomain.id, id))
-  revalidateSiteDomainsCache()
+  await writeDeletedSiteDomain(id)
   return NextResponse.json({ success: true })
 }

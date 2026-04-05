@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { db, initDb } from "@/lib/db"
-import { siteSetting } from "@/lib/schema"
+import { initDb } from "@/lib/db"
 import { isRequestOriginAllowed, normalizeBaseUrl } from "@/lib/http"
-import { getSiteSettings, getSiteSettingsFresh, revalidateSiteSettingsCache } from "@/lib/site-settings"
-import { eq } from "drizzle-orm"
+import { reportDiagnostic } from "@/lib/observability"
+import { getSiteSettings, writeSiteSettings } from "@/lib/site-settings"
 import { headers } from "next/headers"
 import { z } from "zod"
 
@@ -80,20 +79,26 @@ export async function POST(req: NextRequest) {
     userMaxLinksPerHour,
   } = parsed.data
 
-  await db
-    .update(siteSetting)
-    .set({
-      siteName: siteName ?? undefined,
-      siteUrl: siteUrl ?? undefined,
-      allowAnonymous: allowAnonymous ?? undefined,
-      anonMaxLinksPerHour: anonMaxLinksPerHour ?? undefined,
-      anonMaxClicks: anonMaxClicks ?? undefined,
-      userMaxLinksPerHour: userMaxLinksPerHour ?? undefined,
+  try {
+    const updated = await writeSiteSettings({
+      siteName,
+      siteUrl,
+      allowAnonymous,
+      anonMaxLinksPerHour,
+      anonMaxClicks,
+      userMaxLinksPerHour,
     })
-    .where(eq(siteSetting.id, "default"))
 
-  revalidateSiteSettingsCache()
-
-  const updated = await getSiteSettingsFresh()
-  return NextResponse.json(updated)
+    return NextResponse.json(updated)
+  } catch (error) {
+    reportDiagnostic({
+      scope: "admin_settings",
+      event: "write_failed",
+      details: {
+        actorUserId: session.user.id,
+      },
+      error,
+    })
+    return NextResponse.json({ error: "保存设置失败，请稍后重试" }, { status: 500 })
+  }
 }

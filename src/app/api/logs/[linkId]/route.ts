@@ -6,6 +6,41 @@ import { parseBoundedInt } from "@/lib/http"
 import { and, eq, desc, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 
+function maskIpAddress(ipAddress: string | null) {
+  if (!ipAddress) {
+    return null
+  }
+
+  if (ipAddress.includes(".")) {
+    const parts = ipAddress.split(".")
+    if (parts.length === 4) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.***`
+    }
+  }
+
+  if (ipAddress.includes(":")) {
+    const parts = ipAddress.split(":").filter(Boolean)
+    if (parts.length > 0) {
+      return `${parts.slice(0, 2).join(":")}:***`
+    }
+  }
+
+  return "***"
+}
+
+function sanitizeReferrer(referrer: string | null) {
+  if (!referrer) {
+    return null
+  }
+
+  try {
+    const url = new URL(referrer)
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ linkId: string }> }
@@ -59,12 +94,20 @@ export async function GET(
     .offset(offset)
 
   const total = totalCount?.count ?? 0
+  const data = isAdmin
+    ? logs
+    : logs.map((log) => ({
+        ...log,
+        referrer: sanitizeReferrer(log.referrer),
+        userAgent: null,
+        ipAddress: maskIpAddress(log.ipAddress),
+      }))
 
   return NextResponse.json({
-    data: logs,
+    data,
     total,
     page,
     pageSize,
-    totalPages: Math.ceil(total / pageSize)
+    totalPages: Math.max(1, Math.ceil(total / pageSize))
   })
 }

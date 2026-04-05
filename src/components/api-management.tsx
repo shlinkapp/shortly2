@@ -1,6 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  createClientErrorReporter,
+  getResponseErrorMessage,
+  getUserFacingErrorMessage,
+  readOptionalJson,
+} from "@/lib/client-feedback"
 import { formatDate } from "@/lib/utils"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -27,7 +33,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Copy, Download, KeyRound, Trash2 } from "lucide-react"
+import { Copy, Download, ExternalLink, KeyRound, Trash2 } from "lucide-react"
 
 interface ApiKeyRecord {
   id: string
@@ -56,6 +62,8 @@ function maskPrefix(prefix: string): string {
   return `${prefix}****************`
 }
 
+const apiManagementReporter = createClientErrorReporter("api_management")
+
 export function ApiManagementPanel() {
   const [loading, setLoading] = useState(true)
   const [keys, setKeys] = useState<ApiKeyRecord[]>([])
@@ -72,13 +80,16 @@ export function ApiManagementPanel() {
     try {
       const res = await fetch("/v1/keys")
       if (!res.ok) {
-        toast.error("加载 API Key 失败")
+        const body = await readOptionalJson<{ error?: string }>(res)
+        apiManagementReporter.warn("fetch_keys_failed_response", { status: res.status })
+        toast.error(getResponseErrorMessage(body, "加载 API Key 失败"))
         return
       }
       const body = await res.json() as ApiKeysResponse
       setKeys(body.data || [])
-    } catch {
-      toast.error("加载 API Key 失败")
+    } catch (error) {
+      apiManagementReporter.report("fetch_keys_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "加载 API Key 失败"))
     } finally {
       setLoading(false)
     }
@@ -130,6 +141,25 @@ export function ApiManagementPanel() {
     }, null, 2)
   }, [apiBaseUrl, sharexApiKey])
 
+  const shortenEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/shorten`
+  const domainsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/domains`
+  const emailsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/emails`
+  const gettingStartedCommand = `curl -X POST '${shortenEndpoint}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer YOUR_API_KEY' \\
+  -d '{
+    "url": "https://example.com/long-page"
+  }'`
+  const advancedShortenCommand = `curl -X POST '${shortenEndpoint}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer YOUR_API_KEY' \\
+  -d '{
+    "url": "https://example.com/long-page",
+    "customSlug": "my-custom-slug",
+    "maxClicks": 100,
+    "expiresIn": "1m"
+  }'`
+
   async function handleCreateKey() {
     setCreating(true)
     try {
@@ -140,13 +170,14 @@ export function ApiManagementPanel() {
           name: keyName.trim() || undefined,
         }),
       })
-      const body = await res.json()
+      const body = await readOptionalJson<{ error?: string; plainKey?: string }>(res)
       if (!res.ok) {
-        toast.error(body?.error || "创建 API Key 失败")
+        apiManagementReporter.warn("create_key_failed_response", { status: res.status })
+        toast.error(getResponseErrorMessage(body, "创建 API Key 失败"))
         return
       }
 
-      const plainKey = body?.plainKey as string | undefined
+      const plainKey = body?.plainKey
       if (plainKey) {
         setLatestPlainKey(plainKey)
         setSharexApiKey(plainKey)
@@ -155,8 +186,9 @@ export function ApiManagementPanel() {
       setKeyName("")
       toast.success("API Key 已创建")
       await fetchKeys()
-    } catch {
-      toast.error("创建 API Key 失败")
+    } catch (error) {
+      apiManagementReporter.report("create_key_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "创建 API Key 失败"))
     } finally {
       setCreating(false)
     }
@@ -167,15 +199,17 @@ export function ApiManagementPanel() {
     try {
       const res = await fetch(`/v1/keys/${id}`, { method: "DELETE" })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        toast.error(body?.error || "删除 API Key 失败")
+        const body = await readOptionalJson<{ error?: string }>(res)
+        apiManagementReporter.warn("delete_key_failed_response", { keyId: id, status: res.status })
+        toast.error(getResponseErrorMessage(body, "删除 API Key 失败"))
         return
       }
 
       setKeys((prev) => prev.filter((item) => item.id !== id))
       toast.success("API Key 已删除")
-    } catch {
-      toast.error("删除 API Key 失败")
+    } catch (error) {
+      apiManagementReporter.report("delete_key_failed_exception", error, { keyId: id })
+      toast.error(getUserFacingErrorMessage(error, "删除 API Key 失败"))
     } finally {
       setDeletingKeyId(null)
     }
@@ -185,8 +219,9 @@ export function ApiManagementPanel() {
     try {
       await navigator.clipboard.writeText(text)
       toast.success(message)
-    } catch {
-      toast.error("复制失败，请手动复制")
+    } catch (error) {
+      apiManagementReporter.report("copy_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "复制失败，请手动复制"))
     }
   }
 
@@ -215,9 +250,15 @@ export function ApiManagementPanel() {
               <KeyRound className="h-4 w-4" />
               新增 API Key
             </CardTitle>
-            <CardDescription>完整 Key 只会显示一次。创建后请立即复制并妥善保存。</CardDescription>
+            <CardDescription>用于脚本、自动化工具或第三方客户端调用 Shortly API。</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+              <p className="font-medium">完整 API Key 只会显示一次</p>
+              <p className="mt-1 text-amber-900/80 dark:text-amber-100/80">
+                创建成功后请立即复制到密码管理器、CI Secret 或本地安全配置中。关闭此提示后，系统不会再次展示完整 Key。
+              </p>
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 placeholder="Key 名称（可选）"
@@ -230,17 +271,22 @@ export function ApiManagementPanel() {
               </Button>
             </div>
             {latestPlainKey && (
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="mb-1 text-xs text-muted-foreground">请现在复制并保存；关闭后将无法再次查看完整 Key。</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 overflow-x-auto text-xs">{latestPlainKey}</code>
+              <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                <div>
+                  <p className="text-sm font-medium text-emerald-950 dark:text-emerald-100">请立即复制并保存这个 Key</p>
+                  <p className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-100/80">
+                    推荐的下一步：先复制 Key，再去“API 使用说明”跑通最常见的创建短链请求；如果要接入截图工作流，再到“ShareX 配置”直接下载配置文件。
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <code className="flex-1 overflow-x-auto rounded-md border bg-background px-3 py-2 text-xs">{latestPlainKey}</code>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleCopy(latestPlainKey, "API Key 已复制")}
                   >
                     <Copy className="h-4 w-4" />
-                    复制
+                    复制 Key
                   </Button>
                 </div>
               </div>
@@ -311,42 +357,41 @@ export function ApiManagementPanel() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">OpenAPI：短链创建</CardTitle>
+              <CardTitle className="text-base">快速开始</CardTitle>
               <CardDescription>
-                使用 `Authorization: Bearer YOUR_API_KEY` 调用接口。
+                建议按“创建 Key → 发送一次最常见请求 → 再接入 ShareX 或临时邮箱”的顺序上手。
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-sm font-medium">1. 创建 API Key</p>
+                  <p className="mt-1 text-xs text-muted-foreground">创建后立即复制保存，完整 Key 不会再次展示。</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-sm font-medium">2. 先跑通创建短链</p>
+                  <p className="mt-1 text-xs text-muted-foreground">先用最小请求确认鉴权和返回格式都正常。</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-sm font-medium">3. 再接入工具</p>
+                  <p className="mt-1 text-xs text-muted-foreground">需要截图工作流时再导入 ShareX；需要邮箱能力时再看邮件接口。</p>
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <p className="text-sm font-medium">接口地址</p>
+                <p className="text-sm font-medium">最常见调用：创建短链</p>
                 <code className="block rounded-md bg-muted p-2 text-xs">
-                  POST {apiBaseUrl || "https://your-domain.com"}/v1/shorten
+                  POST {shortenEndpoint}
                 </code>
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{gettingStartedCommand}</pre>
               </div>
+
               <div className="space-y-1">
-                <p className="text-sm font-medium">请求示例</p>
-                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/v1/shorten' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer YOUR_API_KEY' \\
-  -d '{
-    "url": "https://example.com/long-page",
-    "customSlug": "my-custom-slug",
-    "maxClicks": 100,
-    "expiresIn": "1m"
-  }'`}
-                </pre>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                `expiresIn` 可选值：`1h`, `1d`, `1w`, `1m`, `3m`, `6m`, `1y`。
-              </p>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">成功响应</p>
+                <p className="text-sm font-medium">成功响应示例</p>
                 <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
 {`{
   "shortUrl": "${apiBaseUrl || "https://your-domain.com"}/abcxyz",
-  "slug": "abcxyz",
-  "maxClicks": 100
+  "slug": "abcxyz"
 }`}
                 </pre>
               </div>
@@ -355,19 +400,47 @@ export function ApiManagementPanel() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">OpenAPI：临时邮箱</CardTitle>
+              <CardTitle className="text-base">进阶参数</CardTitle>
               <CardDescription>
-                同样使用 `Authorization: Bearer YOUR_API_KEY`，以下接口均位于 `/v1/emails`。
+                需要自定义 slug、点击限制或有效期时，再在创建短链请求里追加这些字段。
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{advancedShortenCommand}</pre>
+              <p className="text-xs text-muted-foreground">
+                `expiresIn` 可选值：`1h`, `1d`, `1w`, `1m`, `3m`, `6m`, `1y`。
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">ShareX 导入</CardTitle>
+              <CardDescription>
+                如果你希望截图上传后自动返回短链，直接切到“ShareX 配置”标签即可下载 `.sxcu` 文件。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => handleCopy(sharexConfig, "配置 JSON 已复制")}>
+                <Copy className="h-4 w-4" />
+                先复制 ShareX 配置 JSON
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">临时邮箱 API</CardTitle>
+              <CardDescription>
+                临时邮箱接口同样使用 `Authorization: Bearer YOUR_API_KEY`，按需接入即可。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
               <div className="space-y-1">
-                <p className="text-sm font-medium">1. 创建邮箱</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  POST {apiBaseUrl || "https://your-domain.com"}/v1/emails
-                </code>
+                <p className="text-sm font-medium">创建邮箱</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">POST {emailsEndpoint}</code>
                 <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`curl -X POST '${apiBaseUrl || "https://your-domain.com"}/v1/emails' \\
+{`curl -X POST '${emailsEndpoint}' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -d '{
@@ -377,78 +450,37 @@ export function ApiManagementPanel() {
               </div>
 
               <div className="space-y-1">
-                <p className="text-sm font-medium">2. 获取邮箱列表</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  GET {apiBaseUrl || "https://your-domain.com"}/v1/emails?page=1&limit=20
-                </code>
-                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`{
-  "data": [
-    {
-      "id": "mailbox_id",
-      "emailAddress": "demo@example.com",
-      "domain": "example.com",
-      "createdAt": 1712000000,
-      "unreadCount": 2,
-      "messageCount": 5
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "limit": 20,
-  "totalPages": 1
-}`}
-                </pre>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium">3. 获取某邮箱邮件</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  GET {apiBaseUrl || "https://your-domain.com"}/v1/emails/MAILBOX_ID/messages?page=1&limit=20
-                </code>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium">4. 标记邮件已读</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  POST {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID/read
-                </code>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium">5. 删除邮件</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  DELETE {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID
-                </code>
+                <p className="text-sm font-medium">常用接口</p>
+                <code className="block rounded-md bg-muted p-2 text-xs">GET {emailsEndpoint}?page=1&limit=20</code>
+                <code className="mt-2 block rounded-md bg-muted p-2 text-xs">GET {emailsEndpoint}/MAILBOX_ID/messages?page=1&limit=20</code>
+                <code className="mt-2 block rounded-md bg-muted p-2 text-xs">POST {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID/read</code>
+                <code className="mt-2 block rounded-md bg-muted p-2 text-xs">DELETE {apiBaseUrl || "https://your-domain.com"}/v1/emails/messages/MESSAGE_ID</code>
               </div>
 
               <div className="space-y-1">
                 <p className="text-sm font-medium">域名查询</p>
-                <code className="block rounded-md bg-muted p-2 text-xs">
-                  GET {apiBaseUrl || "https://your-domain.com"}/v1/domains
-                </code>
-                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`{
-  "emailDomains": [
-    {
-      "host": "mail.example.com",
-      "isDefault": true
-    }
-  ],
-  "shortDomains": [
-    {
-      "host": "s.example.com",
-      "isDefault": true
-    }
-  ]
-}`}
-                </pre>
+                <code className="block rounded-md bg-muted p-2 text-xs">GET {domainsEndpoint}</code>
                 <p className="text-xs text-muted-foreground">
                   当前可用临时邮箱域名：{emailDomains.length > 0 ? emailDomains.join(", ") : "加载后显示"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   当前可用短链域名：{shortDomains.length > 0 ? shortDomains.join(", ") : "加载后显示"}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">完整接口说明</CardTitle>
+              <CardDescription>
+                如需查看全部端点与参数，可继续参考 `/v1/shorten`、`/v1/emails`、`/v1/domains` 的返回结构。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                当前最常用入口：<code className="mx-1 text-xs">POST {shortenEndpoint}</code>
+                <ExternalLink className="ml-1 inline h-4 w-4 align-text-bottom" />
               </div>
             </CardContent>
           </Card>
