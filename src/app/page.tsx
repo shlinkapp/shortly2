@@ -1,16 +1,45 @@
 import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { getAvatarUrl } from "@/lib/gravatar"
+import { resolveCanonicalAppUrl } from "@/lib/http"
 import { UrlShortener } from "@/components/url-shortener"
 import { UserMenu } from "@/components/user-menu"
 import { Button } from "@/components/ui/button"
 import { headers } from "next/headers"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { Copyright, Github } from "lucide-react"
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const headersList = await headers()
+  const canonicalAppUrl = resolveCanonicalAppUrl(headersList)
+
+  if (canonicalAppUrl) {
+    const targetUrl = new URL(canonicalAppUrl)
+    const homepageSearchParams = await searchParams
+
+    for (const [key, value] of Object.entries(homepageSearchParams)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          targetUrl.searchParams.append(key, item)
+        }
+        continue
+      }
+
+      if (value !== undefined) {
+        targetUrl.searchParams.set(key, value)
+      }
+    }
+
+    redirect(targetUrl.toString())
+  }
+
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await auth.api.getSession({ headers: headersList })
   const user = session?.user
     ? {
       name: session.user.name,

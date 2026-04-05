@@ -62,6 +62,23 @@ export function resolvePublicAppUrl(siteUrl?: string | null): string {
   )
 }
 
+export function resolveCanonicalAppUrl(headers: Headers): string | null {
+  const canonicalUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL)
+  if (!canonicalUrl) {
+    return null
+  }
+
+  const requestHost = firstHeaderValue(headers.get("x-forwarded-host") ?? headers.get("host") ?? null)
+  const canonicalHostname = toHostname(canonicalUrl)
+  const requestHostname = toHostname(requestHost)
+
+  if (!canonicalHostname || !requestHostname || canonicalHostname === requestHostname) {
+    return null
+  }
+
+  return canonicalUrl
+}
+
 export function buildShortUrl(host: string, slug: string): string {
   const normalizedHost = host.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "")
   return `https://${normalizedHost}/${slug}`
