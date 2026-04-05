@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteSetting } from "@/lib/schema"
 import { isRequestOriginAllowed, normalizeBaseUrl } from "@/lib/http"
+import { getSiteSettings, getSiteSettingsFresh, revalidateSiteSettingsCache } from "@/lib/site-settings"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -48,7 +49,7 @@ export async function GET() {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
+  const settings = await getSiteSettings()
   return NextResponse.json(settings)
 }
 
@@ -91,6 +92,8 @@ export async function POST(req: NextRequest) {
     })
     .where(eq(siteSetting.id, "default"))
 
-  const updated = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
+  revalidateSiteSettingsCache()
+
+  const updated = await getSiteSettingsFresh()
   return NextResponse.json(updated)
 }

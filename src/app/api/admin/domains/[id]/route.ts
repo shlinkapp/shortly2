@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
-import { parseDomainHost } from "@/lib/site-domains"
+import { parseDomainHost, revalidateSiteDomainsCache } from "@/lib/site-domains"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -98,6 +98,7 @@ export async function PATCH(
     .where(eq(siteDomain.id, id))
 
   const updated = await db.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
+  revalidateSiteDomainsCache()
   return NextResponse.json({ data: updated })
 }
 
@@ -124,5 +125,6 @@ export async function DELETE(
   }
 
   await db.delete(siteDomain).where(eq(siteDomain.id, id))
+  revalidateSiteDomainsCache()
   return NextResponse.json({ success: true })
 }

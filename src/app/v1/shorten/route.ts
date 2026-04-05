@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db, initDb } from "@/lib/db"
-import { shortLink, siteSetting } from "@/lib/schema"
+import { shortLink } from "@/lib/schema"
 import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -10,6 +10,7 @@ import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/s
 import { z } from "zod"
 import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
 import { getAllowedShortDomain } from "@/lib/site-domains"
+import { getSiteSettings } from "@/lib/site-settings"
 import { and, eq } from "drizzle-orm"
 
 const openApiShortenSchema = z.object({
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: 401 })
   }
 
-  const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
+  const settings = await getSiteSettings()
   const rawBody = await req.json().catch(() => null)
   if (!rawBody || typeof rawBody !== "object") {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })

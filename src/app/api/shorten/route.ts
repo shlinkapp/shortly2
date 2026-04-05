@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
-import { shortLink, siteSetting } from "@/lib/schema"
+import { shortLink } from "@/lib/schema"
 import { generateSlug, isValidSlug, validateUrl } from "@/lib/slug"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -9,6 +9,7 @@ import { createLinkLog } from "@/lib/link-logs"
 import { buildShortUrl, isRequestOriginAllowed, isSelfShortenTarget } from "@/lib/http"
 import { SHORT_LINK_EXPIRES_IN_VALUES, resolveShortLinkExpiresAt } from "@/lib/short-link-expiration"
 import { getAllowedShortDomain } from "@/lib/site-domains"
+import { getSiteSettings } from "@/lib/site-settings"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   const headersList = await headers()
   const session = await auth.api.getSession({ headers: headersList })
 
-  const settings = await db.select().from(siteSetting).where(eq(siteSetting.id, "default")).get()
+  const settings = await getSiteSettings()
   const allowAnonymous = settings?.allowAnonymous ?? true
 
   if (!isRequestOriginAllowed(headersList, settings?.siteUrl)) {

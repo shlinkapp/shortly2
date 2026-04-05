@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
-import { parseDomainHost } from "@/lib/site-domains"
+import { parseDomainHost, revalidateSiteDomainsCache } from "@/lib/site-domains"
 import { asc, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -102,5 +102,6 @@ export async function POST(req: NextRequest) {
   })
 
   const created = await db.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
+  revalidateSiteDomainsCache()
   return NextResponse.json({ data: created }, { status: 201 })
 }

@@ -2,9 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
-import { db, initDb } from "@/lib/db"
-import { siteSetting } from "@/lib/schema"
-import { eq } from "drizzle-orm"
+import { getSiteSettings } from "@/lib/site-settings"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,12 +15,7 @@ const geistMono = Geist_Mono({
 })
 
 export async function generateMetadata(): Promise<Metadata> {
-  await initDb()
-  const settings = await db
-    .select({ siteName: siteSetting.siteName })
-    .from(siteSetting)
-    .where(eq(siteSetting.id, "default"))
-    .get()
+  const settings = await getSiteSettings()
 
   return {
     title: settings?.siteName || "Shortly",

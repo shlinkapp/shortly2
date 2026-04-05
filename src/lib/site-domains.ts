@@ -1,6 +1,52 @@
-import { and, eq } from "drizzle-orm"
-import { db } from "@/lib/db"
+import { revalidateTag, unstable_cache } from "next/cache"
+import { and, asc, eq } from "drizzle-orm"
+import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
+
+type ActiveShortDomain = {
+  host: string
+  isDefaultShortDomain: boolean
+}
+
+type ActiveEmailDomain = {
+  host: string
+  isDefaultEmailDomain: boolean
+}
+
+const SITE_DOMAINS_TAG = "site-domains"
+const SITE_DOMAINS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
+
+const getCachedActiveShortDomains = unstable_cache(
+  async (): Promise<ActiveShortDomain[]> => {
+    await initDb()
+    return db
+      .select({
+        host: siteDomain.host,
+        isDefaultShortDomain: siteDomain.isDefaultShortDomain,
+      })
+      .from(siteDomain)
+      .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsShortLinks, true)))
+      .orderBy(asc(siteDomain.host))
+  },
+  ["site-domains", SITE_DOMAINS_CACHE_KEY, "short"],
+  { tags: [SITE_DOMAINS_TAG] }
+)
+
+const getCachedActiveEmailDomains = unstable_cache(
+  async (): Promise<ActiveEmailDomain[]> => {
+    await initDb()
+    return db
+      .select({
+        host: siteDomain.host,
+        isDefaultEmailDomain: siteDomain.isDefaultEmailDomain,
+      })
+      .from(siteDomain)
+      .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsTempEmail, true)))
+      .orderBy(asc(siteDomain.host))
+  },
+  ["site-domains", SITE_DOMAINS_CACHE_KEY, "email"],
+  { tags: [SITE_DOMAINS_TAG] }
+)
 
 function normalizeDomainHost(value: string): string | null {
   const trimmed = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "")
@@ -14,41 +60,21 @@ export function parseDomainHost(value: string): string | null {
 }
 
 export async function getActiveShortDomains() {
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsShortLinks, true)))
+  return getCachedActiveShortDomains()
 }
 
 export async function getActiveEmailDomains() {
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsTempEmail, true)))
+  return getCachedActiveEmailDomains()
 }
 
 export async function getDefaultShortDomain() {
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(
-      eq(siteDomain.isActive, true),
-      eq(siteDomain.supportsShortLinks, true),
-      eq(siteDomain.isDefaultShortDomain, true)
-    ))
-    .get()
+  const domains = await getCachedActiveShortDomains()
+  return domains.find((item) => item.isDefaultShortDomain) ?? null
 }
 
 export async function getDefaultEmailDomain() {
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(
-      eq(siteDomain.isActive, true),
-      eq(siteDomain.supportsTempEmail, true),
-      eq(siteDomain.isDefaultEmailDomain, true)
-    ))
-    .get()
+  const domains = await getCachedActiveEmailDomains()
+  return domains.find((item) => item.isDefaultEmailDomain) ?? null
 }
 
 export async function getAllowedShortDomain(host?: string | null) {
@@ -61,15 +87,8 @@ export async function getAllowedShortDomain(host?: string | null) {
     return null
   }
 
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(
-      eq(siteDomain.host, normalized),
-      eq(siteDomain.isActive, true),
-      eq(siteDomain.supportsShortLinks, true)
-    ))
-    .get()
+  const domains = await getCachedActiveShortDomains()
+  return domains.find((item) => item.host === normalized) ?? null
 }
 
 export async function getAllowedEmailDomain(host?: string | null) {
@@ -82,13 +101,10 @@ export async function getAllowedEmailDomain(host?: string | null) {
     return null
   }
 
-  return db
-    .select()
-    .from(siteDomain)
-    .where(and(
-      eq(siteDomain.host, normalized),
-      eq(siteDomain.isActive, true),
-      eq(siteDomain.supportsTempEmail, true)
-    ))
-    .get()
+  const domains = await getCachedActiveEmailDomains()
+  return domains.find((item) => item.host === normalized) ?? null
+}
+
+export function revalidateSiteDomainsCache() {
+  revalidateTag(SITE_DOMAINS_TAG, "max")
 }
