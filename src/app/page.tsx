@@ -50,18 +50,18 @@ export default async function HomePage({
     : null
 
   return (
-    <main className="relative flex min-h-screen flex-col px-4 py-16">
-      <div className="absolute top-4 right-4">
+    <main className="relative flex min-h-screen flex-col px-4 py-8 sm:py-10">
+      <div className="flex items-center justify-end">
         {user ? (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
               <Link href="/dashboard?tab=temp-email">临时邮箱</Link>
             </Button>
             <UserMenu user={user} />
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
               <Link href="/login">登录</Link>
             </Button>
             <Button size="sm" asChild>
@@ -71,22 +71,22 @@ export default async function HomePage({
         )}
       </div>
 
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center py-10 sm:py-16">
         <UrlShortener user={user} />
       </div>
 
-      <footer className="fixed right-0 bottom-4 left-0 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+      <footer className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground/80">
         <span className="inline-flex items-center gap-1">
-          <Copyright className="h-4 w-4" aria-hidden="true" />
+          <Copyright className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{new Date().getFullYear()} Shortly.</span>
         </span>
         <Link
           href="https://github.com/shlinkapp/shortly2"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
+          className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
         >
-          <Github className="h-4 w-4" aria-hidden="true" />
+          <Github className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Open Source</span>
         </Link>
       </footer>

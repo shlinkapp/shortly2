@@ -5,7 +5,7 @@ import { authClient } from "@/lib/auth-client"
 import { createClientErrorReporter, getUserFacingErrorMessage } from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import { KeyRound, Plus, Trash2, Loader2, MonitorSmartphone } from "lucide-react"
@@ -107,52 +107,38 @@ export function PasskeyManager() {
 
   return (
     <Card className="max-w-3xl">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <KeyRound className="h-5 w-5" />
-              通行密钥 (Passkey)
-            </CardTitle>
-            <CardDescription className="mt-1">
-              使用通行密钥（如指纹、面容 ID 或安全密钥）以更安全、快捷的方式登录。
-            </CardDescription>
-          </div>
-          {supportsPasskey && (
-            <Button onClick={handleAddPasskey} disabled={loadingAdd || isPending}>
-              {loadingAdd ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
-              添加通行密钥
-            </Button>
-          )}
-        </div>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <KeyRound className="h-4 w-4" />
+          通行密钥
+        </CardTitle>
+        {supportsPasskey && (
+          <Button onClick={handleAddPasskey} disabled={loadingAdd || isPending} size="sm">
+            {loadingAdd ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            添加
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
-        {!supportsPasskey && (
-          <div className="mb-4 rounded-md bg-muted p-4 text-sm text-muted-foreground">
-            当前浏览器或访问环境暂不支持通行密钥。请优先使用最新版浏览器，并确认正在通过 HTTPS 访问本站。
-          </div>
-        )}
-
-        {isPending ? (
+        {!supportsPasskey ? (
+          <div className="text-sm text-muted-foreground">当前环境不支持通行密钥。</div>
+        ) : isPending ? (
           <div className="flex items-center justify-center py-8 text-center text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             加载中...
           </div>
         ) : !passkeys?.length ? (
-          <div className="rounded-lg border border-dashed bg-background/50 py-12 text-center text-muted-foreground">
-            <KeyRound className="mx-auto mb-3 h-8 w-8 opacity-20" />
-            <p>您尚未添加任何通行密钥</p>
-          </div>
+          <div className="py-10 text-center text-sm text-muted-foreground">还没有通行密钥。</div>
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>名称 / 设备</TableHead>
+                  <TableHead>设备</TableHead>
                   <TableHead className="hidden w-32 sm:table-cell">创建时间</TableHead>
                   <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
@@ -171,7 +157,7 @@ export function PasskeyManager() {
                         )}
                       </div>
                       <div className="mt-1 max-w-[200px] truncate break-all font-mono text-xs text-muted-foreground">
-                        ID: {pk.credentialID?.substring(0, 16)}...
+                        {pk.credentialID?.substring(0, 16)}...
                       </div>
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">

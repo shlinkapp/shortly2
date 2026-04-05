@@ -53,26 +53,46 @@ const creatorModeMeta: Record<
   ShortLinkCreatorMode,
   {
     showContainer: boolean
-    getTitle: (user: CreatorUser | null) => string
-    getDescription: (user: CreatorUser | null) => string
-    showLoginHint: boolean
+    title: string
+    description: string
   }
 > = {
   homepage: {
     showContainer: false,
-    getTitle: () => "快速创建短链",
-    getDescription: (user) =>
-      user
-        ? "输入长链接后即可快速生成短链；你当前已登录，也可以继续使用更多高级规则。"
-        : "先快速生成可分享的短链；登录后再按需启用自定义后缀、有效期和访问限制。",
-    showLoginHint: true,
+    title: "快速创建短链",
+    description: "",
   },
   dashboard: {
     showContainer: true,
-    getTitle: () => "创建短链",
-    getDescription: () => "粘贴长链接并设置可选项；创建后的短链会显示在右侧，方便继续管理。",
-    showLoginHint: false,
+    title: "创建短链",
+    description: "粘贴长链接并设置可选项；创建后的短链会显示在右侧，方便继续管理。",
   },
+}
+
+function getFieldHint(mode: ShortLinkCreatorMode, field: "domain" | "customSlug" | "maxClicks" | "expiresIn") {
+  if (mode === "homepage") {
+    switch (field) {
+      case "domain":
+        return "使用可用域名"
+      case "customSlug":
+        return "留空则自动生成"
+      case "maxClicks":
+        return "留空则不限制"
+      case "expiresIn":
+        return "留空则长期有效"
+    }
+  }
+
+  switch (field) {
+    case "domain":
+      return "默认使用管理员配置的短链域名；你也可以在这里切换到其他可用域名。"
+    case "customSlug":
+      return "不填写时系统会自动生成；适合活动页、品牌词或便于记忆的链接。"
+    case "maxClicks":
+      return "适合限量传播、一次性口令或需要在达到阈值后自动失效的场景。"
+    case "expiresIn":
+      return "适合短期活动、临时分享或需要自动回收的链接。"
+  }
 }
 
 export function ShortLinkCreator({
@@ -82,20 +102,7 @@ export function ShortLinkCreator({
 }: ShortLinkCreatorProps) {
   const isHomepageMode = mode === "homepage"
   const modeMeta = creatorModeMeta[mode]
-  const resolvedTitle = modeMeta.getTitle(user)
-  const resolvedDescription = modeMeta.getDescription(user)
-  const resolvedShowLoginHint = modeMeta.showLoginHint
-  const showContainer = modeMeta.showContainer
-  const submitLabel = isHomepageMode ? "立即生成短链" : "创建短链"
-  const loginCtaLabel = isHomepageMode ? "登录后解锁更多能力" : "登录后使用更多选项"
-  const successHint = isHomepageMode
-    ? "现在可以复制短链、立即打开验证，或继续缩短下一条链接。"
-    : "现在可以复制短链、打开测试，或继续创建下一条。"
-  const anonymousResultHint = user
-    ? null
-    : isHomepageMode
-      ? "匿名创建的链接会使用默认域名，并受访问次数限制。登录后可自定义更多规则。"
-      : "匿名创建的链接会使用默认域名，并受访问次数限制。登录后可自定义更多规则。"
+  const submitLabel = isHomepageMode ? "生成" : "创建短链"
 
   const [url, setUrl] = useState("")
   const [customSlug, setCustomSlug] = useState("")
@@ -156,8 +163,15 @@ export function ShortLinkCreator({
 
   function handleUrlChange(value: string) {
     setUrl(value)
-    setShowOptions(!!value.trim())
-    if (!value.trim()) setResult(null)
+    if (!value.trim()) {
+      setShowOptions(false)
+      setResult(null)
+      return
+    }
+
+    if (!isHomepageMode) {
+      setShowOptions(true)
+    }
   }
 
   function handleShorten() {
@@ -219,9 +233,22 @@ export function ShortLinkCreator({
     setResult(null)
   }
 
+  const homepageOptionsButton = isHomepageMode && !result && url.trim()
+  const shouldShowOptionsPanel = showOptions && user
+  const showStandaloneCreate = isHomepageMode && !showOptions && !result
+  const showCreateActions = !result && (!isHomepageMode || showOptions)
+  const showNoDomainWarning = user && !domainsLoading && shortDomains.length < 1
+
   const content = (
-    <div className={`flex w-full flex-col gap-4 ${showContainer ? "max-w-none" : "max-w-2xl"}`}>
-      <div className="space-y-2">
+    <div className={isHomepageMode ? "mx-auto w-full max-w-3xl space-y-4" : "flex w-full max-w-none flex-col gap-4"}>
+      {isHomepageMode && (
+        <div className="space-y-2 text-center">
+          <h1 className="text-balance text-[clamp(2rem,5vw,3.5rem)] font-medium tracking-[-0.04em]">快速创建短链</h1>
+          <p className="text-sm text-muted-foreground">立即缩短。</p>
+        </div>
+      )}
+
+      <div className={isHomepageMode ? "border-b" : "space-y-2"}>
         <Input
           id="short-link-url"
           type="url"
@@ -229,182 +256,206 @@ export function ShortLinkCreator({
           value={url}
           onChange={(e) => handleUrlChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && showOptions) handleShorten()
+            if (e.key === "Enter" && (showOptions || isHomepageMode)) handleShorten()
           }}
-          className="h-12 text-base"
-          autoFocus={!showContainer}
+          className={
+            isHomepageMode
+              ? "h-14 border-0 bg-transparent px-0 text-xl shadow-none focus-visible:ring-0 sm:h-16 sm:text-2xl"
+              : "h-12 text-base"
+          }
+          autoFocus={!modeMeta.showContainer}
         />
       </div>
 
-      {showOptions && (
-        <div className="animate-in fade-in slide-in-from-top-1 flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 duration-200">
-          {user ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label htmlFor="short-link-domain" className="text-sm font-medium">短链域名</label>
-                  <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={domainsLoading || shortDomains.length < 1}>
-                    <SelectTrigger id="short-link-domain" aria-label="短链域名" className="h-10 w-full bg-background">
-                      <SelectValue placeholder={domainsLoading ? "加载短链域名中..." : "选择短链域名"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shortDomains.map((domain) => (
-                        <SelectItem key={domain.host} value={domain.host}>
-                          {domain.host}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">默认使用管理员配置的短链域名；你也可以在这里切换到其他可用域名。</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="short-link-custom-slug" className="text-sm font-medium">自定义后缀</label>
-                  <Input
-                    id="short-link-custom-slug"
-                    placeholder="例如：summer-sale"
-                    value={customSlug}
-                    onChange={(e) => setCustomSlug(e.target.value)}
-                    className="h-10 bg-background"
-                    maxLength={50}
-                  />
-                  <p className="text-xs text-muted-foreground">不填写时系统会自动生成；适合活动页、品牌词或便于记忆的链接。</p>
-                </div>
-              </div>
+      {showStandaloneCreate && (
+        <Button onClick={handleShorten} disabled={isPending || !canSubmit} className="h-11 w-full">
+          <Scissors className="h-4 w-4" />
+          {isPending ? "生成中..." : submitLabel}
+        </Button>
+      )}
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label htmlFor="short-link-max-clicks" className="text-sm font-medium">最大点击次数</label>
-                  <Input
-                    id="short-link-max-clicks"
-                    type="number"
-                    placeholder="不填则不限制"
-                    value={maxClicks}
-                    onChange={(e) => setMaxClicks(e.target.value)}
-                    className="h-10 bg-background"
-                    min="1"
-                  />
-                  <p className="text-xs text-muted-foreground">适合限量传播、一次性口令或需要在达到阈值后自动失效的场景。</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="short-link-expires-in" className="text-sm font-medium">有效期</label>
-                  <Select
-                    value={expiresIn}
-                    onValueChange={(value) => setExpiresIn(value as ShortLinkExpiresIn | "none")}
-                  >
-                    <SelectTrigger id="short-link-expires-in" aria-label="有效期" className="h-10 w-full bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">不设置有效期</SelectItem>
-                      {SHORT_LINK_EXPIRES_IN_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">适合短期活动、临时分享或需要自动回收的链接。</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-lg border border-dashed bg-background px-4 py-3 text-sm text-center text-muted-foreground">
-              登录后可获取个性化短链接、临时邮箱等高级功能。
-            </div>
+      {homepageOptionsButton && (
+        <div className="flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="px-0 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowOptions((current) => !current)}
+          >
+            {showOptions ? "收起选项" : user ? "更多选项" : "登录后使用更多选项"}
+          </Button>
+          {!user && (
+            <Button variant="ghost" size="sm" asChild className="px-0 text-muted-foreground hover:text-foreground">
+              <Link href="/login">
+                <LogIn className="h-4 w-4" />
+                登录
+              </Link>
+            </Button>
           )}
+        </div>
+      )}
 
-          {!result && (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                onClick={handleShorten}
-                disabled={isPending || !canSubmit}
-                className="h-10 flex-1"
+      {shouldShowOptionsPanel && (
+        <div className={isHomepageMode ? "animate-in fade-in slide-in-from-top-1 flex flex-col gap-4 border-t pt-4 duration-200" : "animate-in fade-in slide-in-from-top-1 flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 duration-200"}>
+          <div className={isHomepageMode ? "grid gap-4 md:grid-cols-2" : "grid gap-3 md:grid-cols-2"}>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="short-link-domain"
+                className={isHomepageMode ? "text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground" : "text-sm font-medium"}
               >
+                短链域名
+              </label>
+              <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={domainsLoading || shortDomains.length < 1}>
+                <SelectTrigger id="short-link-domain" aria-label="短链域名" className="h-10 w-full bg-background">
+                  <SelectValue placeholder={domainsLoading ? "加载短链域名中..." : "选择短链域名"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {shortDomains.map((domain) => (
+                    <SelectItem key={domain.host} value={domain.host}>
+                      {domain.host}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground/80">{getFieldHint(mode, "domain")}</p>
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="short-link-custom-slug"
+                className={isHomepageMode ? "text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground" : "text-sm font-medium"}
+              >
+                自定义后缀
+              </label>
+              <Input
+                id="short-link-custom-slug"
+                placeholder="例如：summer-sale"
+                value={customSlug}
+                onChange={(e) => setCustomSlug(e.target.value)}
+                className="h-10 bg-background"
+                maxLength={50}
+              />
+              <p className="text-[11px] text-muted-foreground/80">{getFieldHint(mode, "customSlug")}</p>
+            </div>
+          </div>
+
+          <div className={isHomepageMode ? "grid gap-4 md:grid-cols-2" : "grid gap-3 md:grid-cols-2"}>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="short-link-max-clicks"
+                className={isHomepageMode ? "text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground" : "text-sm font-medium"}
+              >
+                最大点击次数
+              </label>
+              <Input
+                id="short-link-max-clicks"
+                type="number"
+                placeholder="不填则不限制"
+                value={maxClicks}
+                onChange={(e) => setMaxClicks(e.target.value)}
+                className="h-10 bg-background"
+                min="1"
+              />
+              <p className="text-[11px] text-muted-foreground/80">{getFieldHint(mode, "maxClicks")}</p>
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="short-link-expires-in"
+                className={isHomepageMode ? "text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground" : "text-sm font-medium"}
+              >
+                有效期
+              </label>
+              <Select value={expiresIn} onValueChange={(value) => setExpiresIn(value as ShortLinkExpiresIn | "none")}>
+                <SelectTrigger id="short-link-expires-in" aria-label="有效期" className="h-10 w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不设置有效期</SelectItem>
+                  {SHORT_LINK_EXPIRES_IN_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground/80">{getFieldHint(mode, "expiresIn")}</p>
+            </div>
+          </div>
+
+          {showCreateActions && (
+            <div className={isHomepageMode ? "flex flex-col gap-2 pt-1 sm:flex-row" : "flex flex-col gap-2 sm:flex-row"}>
+              <Button onClick={handleShorten} disabled={isPending || !canSubmit} className="h-10 flex-1">
                 <Scissors className="h-4 w-4" />
                 {isPending ? "创建中..." : submitLabel}
               </Button>
-              {!user && (
-                <Button variant="outline" asChild className="h-10 shrink-0">
-                  <Link href="/login">
-                    <LogIn className="h-4 w-4" />
-                    {loginCtaLabel}
-                  </Link>
-                </Button>
-              )}
-            </div>
-          )}
-
-          {user && !domainsLoading && shortDomains.length < 1 && (
-            <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              当前没有可用的短链域名，请先让管理员启用短链域名后再创建。
-            </div>
-          )}
-
-          {result && (
-            <div className="space-y-3 rounded-lg border bg-background p-4">
-              <div>
-                <p className="text-sm font-medium">短链已创建</p>
-                <p className="mt-1 text-xs text-muted-foreground">{successHint}</p>
-              </div>
-              <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 px-3 py-3 sm:flex-row sm:items-center">
-                <a
-                  href={result.shortUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 flex-1 truncate text-sm font-medium text-primary hover:underline"
-                >
-                  {result.shortUrl}
-                </a>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
-                    <Copy className="h-4 w-4" />
-                    复制
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <a href={result.shortUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                      打开
-                    </a>
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
-                    <X className="h-4 w-4" />
-                    继续新建
-                  </Button>
-                </div>
-              </div>
-              {anonymousResultHint && (
-                <p className="text-xs text-muted-foreground">{anonymousResultHint}</p>
-              )}
-              {!user && result.maxClicks && (
-                <p className="text-xs font-medium text-destructive">
-                  匿名用户生成的链接在 {result.maxClicks} 次访问后失效，登录后可解除该限制。
-                </p>
-              )}
             </div>
           )}
         </div>
       )}
 
-      {!user && !showOptions && resolvedShowLoginHint && (
-        <p className="text-center text-sm text-muted-foreground">
-          <Link href="/login" className="font-medium text-foreground hover:underline">
-            登录
-          </Link>{" "}
-          后可获取个性化短链接、临时邮箱等高级功能。
+      {showNoDomainWarning && (
+        <div className={isHomepageMode ? "border-t pt-3 text-sm text-destructive" : "rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"}>
+          {isHomepageMode ? "暂无可用短链域名" : "当前没有可用的短链域名，请先让管理员启用短链域名后再创建。"}
+        </div>
+      )}
+
+      {result && (
+        <div className={isHomepageMode ? "space-y-3 border-t pt-3" : "space-y-3 rounded-lg border bg-background p-4"}>
+          {!isHomepageMode && (
+            <div>
+              <p className="text-sm font-medium">短链已创建</p>
+              <p className="mt-1 text-xs text-muted-foreground">现在可以复制短链、打开测试，或继续创建下一条。</p>
+            </div>
+          )}
+          <div className={isHomepageMode ? "flex flex-col gap-3 sm:flex-row sm:items-center" : "flex flex-col gap-3 rounded-lg border bg-muted/40 px-3 py-3 sm:flex-row sm:items-center"}>
+            <a
+              href={result.shortUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={isHomepageMode ? "min-w-0 flex-1 truncate text-base font-medium hover:underline" : "min-w-0 flex-1 truncate text-sm font-medium text-primary hover:underline"}
+            >
+              {result.shortUrl}
+            </a>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+                <Copy className="h-4 w-4" />
+                复制
+              </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href={result.shortUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  打开
+                </a>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
+                <X className="h-4 w-4" />
+                继续新建
+              </Button>
+            </div>
+          </div>
+          {!user && isHomepageMode && result.maxClicks && (
+            <p className="text-xs font-medium text-destructive">匿名链接会在 {result.maxClicks} 次访问后失效。</p>
+          )}
+        </div>
+      )}
+
+      {isHomepageMode && (
+        <p className="pt-6 text-center text-[11px] text-muted-foreground/70">
+          {user ? "可继续展开选项设置域名、有效期和访问限制。" : "登录后可设置域名、有效期和访问限制。"}
         </p>
       )}
     </div>
   )
 
-  if (!showContainer) {
+  if (!modeMeta.showContainer) {
     return content
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{resolvedTitle}</CardTitle>
-        <CardDescription>{resolvedDescription}</CardDescription>
+        <CardTitle className="text-base">{modeMeta.title}</CardTitle>
+        <CardDescription>{modeMeta.description}</CardDescription>
       </CardHeader>
       <CardContent>{content}</CardContent>
     </Card>

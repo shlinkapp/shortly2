@@ -9,7 +9,7 @@ import {
   readOptionalJson,
 } from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -183,17 +183,6 @@ export function TempEmailManager() {
 
   const canCreateMailbox = Boolean(selectedDomain) && !loadingDomains && !creatingMailbox
   const hasMailboxList = mailboxes.length > 0
-  const messagePanelDescription = selectedMailbox
-    ? `当前邮箱共有 ${selectedMailbox.messageCount} 封邮件，未读 ${selectedMailbox.unreadCount} 封。列表会在你停留当前页面时自动刷新。`
-    : hasMailboxList
-      ? "先从左侧选择一个邮箱，再查看收到的邮件。"
-      : "先创建一个临时邮箱，再在这里集中查看收到的邮件。"
-  const emptyMailboxMessage = selectedMailbox
-    ? "复制上方邮箱地址，去注册或接收验证邮件后再回来查看；页面停留期间会自动刷新。"
-    : "先在左侧选择一个邮箱，或先创建新的临时邮箱。"
-  const noMailboxSelectionMessage = hasMailboxList
-    ? "左侧已有邮箱，选择一个后就能在这里查看邮件。"
-    : "先在左侧创建一个新的临时邮箱，然后就能开始收信。"
 
   const fetchDomains = useCallback(async (options?: { silent?: boolean }) => {
     setLoadingDomains(true)
@@ -502,29 +491,22 @@ export function TempEmailManager() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <MailPlus className="h-4 w-4" />
-              临时邮箱
+              邮箱
             </CardTitle>
-            <CardDescription>创建临时邮箱地址，并在右侧集中查看收到的邮件。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-medium">创建新邮箱</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  输入前缀并选择域名后，就能生成新的临时邮箱地址。
-                </p>
-              </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem] lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_12rem]">
                 <Input
                   id="temp-email-prefix"
                   aria-label="邮箱前缀"
-                  placeholder="输入邮箱前缀，例如：summer-sale"
+                  placeholder="输入前缀"
                   value={mailboxInput}
                   onChange={(e) => setMailboxInput(e.target.value)}
                 />
                 <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={emailDomains.length < 1}>
                   <SelectTrigger id="temp-email-domain" aria-label="邮箱域名">
-                    <SelectValue placeholder="选择邮箱域名" />
+                    <SelectValue placeholder="选择域名" />
                   </SelectTrigger>
                   <SelectContent>
                     {emailDomains.map((domain) => (
@@ -536,71 +518,50 @@ export function TempEmailManager() {
                 </Select>
               </div>
               <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                <p className="text-xs text-muted-foreground">邮箱预览</p>
-                <p className="mt-1 break-all font-mono text-sm">
-                  {mailboxPreview || "输入前缀后将在这里显示完整邮箱地址"}
+                <p className="break-all font-mono text-sm">
+                  {mailboxPreview || "邮箱预览"}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button type="button" variant="outline" onClick={handleGenerateRandomPrefix} className="flex-1">
                   <RefreshCw className="h-4 w-4" />
-                  生成随机前缀
+                  随机前缀
                 </Button>
                 <Button onClick={handleCreateMailbox} disabled={!canCreateMailbox} className="flex-1">
-                  {creatingMailbox ? "创建中..." : "创建邮箱"}
+                  {creatingMailbox ? "创建中..." : "创建"}
                 </Button>
               </div>
               {loadingDomains ? (
-                <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
-                  <p>正在加载可用邮箱域名...</p>
-                  <p className="mt-1">加载完成后即可选择域名并创建邮箱。</p>
-                </div>
+                <div className="text-xs text-muted-foreground">正在加载域名...</div>
               ) : domainsError ? (
-                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-3 text-xs text-destructive">
-                  <p className="font-medium">邮箱域名暂时不可用</p>
-                  <p className="mt-1">{domainsError}</p>
-                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => fetchDomains()}>
-                    重试加载域名
+                <div className="space-y-3 text-xs text-destructive">
+                  <p>{domainsError}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => fetchDomains()}>
+                    重试
                   </Button>
                 </div>
               ) : !selectedDomain ? (
-                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-3 text-xs text-destructive">
-                  <p className="font-medium">当前没有可用邮箱域名</p>
-                  <p className="mt-1">请先联系管理员启用邮箱域名后再创建。</p>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">创建成功后会自动出现在下方列表，你可以直接复制地址并等待来信。</p>
-              )}
+                <div className="text-xs text-destructive">当前没有可用邮箱域名。</div>
+              ) : null}
             </section>
 
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-medium">我的邮箱</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">选择一个邮箱后，就能在右侧查看收件内容。</p>
-                </div>
-                {mailboxes.length > 0 && <Badge variant="outline">{mailboxes.length} 个</Badge>}
+                <h3 className="text-sm font-medium">我的邮箱</h3>
+                {mailboxes.length > 0 && <Badge variant="outline">{mailboxes.length}</Badge>}
               </div>
 
               {loadingMailboxes ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  <p>正在加载邮箱列表...</p>
-                  <p className="mt-2 text-xs">创建成功后的邮箱会显示在这里，方便继续切换和管理。</p>
-                </div>
+                <div className="py-8 text-center text-sm text-muted-foreground">正在加载...</div>
               ) : mailboxesError ? (
-                <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-8 text-center text-sm text-destructive">
-                  <p className="font-medium">邮箱列表加载失败</p>
-                  <p className="mt-2">{mailboxesError}</p>
-                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => fetchMailboxes()}>
-                    重试加载邮箱
+                <div className="space-y-4 py-8 text-center text-sm text-destructive">
+                  <p>{mailboxesError}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => fetchMailboxes()}>
+                    重试
                   </Button>
                 </div>
               ) : mailboxes.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                  <p>你还没有临时邮箱。</p>
-                  <p className="mt-2">先在上方创建一个邮箱，然后就能开始收信了。</p>
-                  <p className="mt-2 text-xs">创建成功后，这里会显示邮箱地址、未读数量和删除入口。</p>
-                </div>
+                <div className="py-10 text-center text-sm text-muted-foreground">还没有邮箱。</div>
               ) : (
                 <div className="space-y-2">
                   {mailboxes.map((mailbox) => (
@@ -618,10 +579,10 @@ export function TempEmailManager() {
                           className="min-w-0 flex-1 text-left"
                         >
                           <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">创建于 {formatDate(mailbox.createdAt)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{formatDate(mailbox.createdAt)}</p>
                         </button>
                         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                          <Badge variant="outline">{mailbox.messageCount} 封</Badge>
+                          <Badge variant="outline">{mailbox.messageCount}</Badge>
                           {mailbox.unreadCount > 0 && <Badge>{mailbox.unreadCount} 未读</Badge>}
                           <Button
                             type="button"
@@ -647,12 +608,9 @@ export function TempEmailManager() {
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle className="break-all text-base font-mono">
-                  {selectedMailbox?.emailAddress || "邮件列表"}
-                </CardTitle>
-                <CardDescription>{messagePanelDescription}</CardDescription>
-              </div>
+              <CardTitle className="break-all text-base font-mono">
+                {selectedMailbox?.emailAddress || "邮件"}
+              </CardTitle>
               {selectedMailbox && (
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -662,7 +620,7 @@ export function TempEmailManager() {
                     disabled={loadingMessages}
                   >
                     <RefreshCw className={`h-4 w-4${loadingMessages ? " animate-spin" : ""}`} />
-                    刷新邮件
+                    刷新
                   </Button>
                   <Button
                     variant="outline"
@@ -670,7 +628,7 @@ export function TempEmailManager() {
                     onClick={() => handleCopy(selectedMailbox.emailAddress, "邮箱地址已复制")}
                   >
                     <Copy className="h-4 w-4" />
-                    复制邮箱地址
+                    复制
                   </Button>
                 </div>
               )}
@@ -678,36 +636,26 @@ export function TempEmailManager() {
           </CardHeader>
           <CardContent>
             {!selectedMailbox ? (
-              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-                <p>暂未选择邮箱。</p>
-                <p className="mt-2">{noMailboxSelectionMessage}</p>
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                {hasMailboxList ? "先选择一个邮箱。" : "先创建一个邮箱。"}
               </div>
             ) : loadingMessages ? (
-              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-                <p>正在加载邮件...</p>
-                <p className="mt-2 text-xs">页面停留期间会自动刷新；你也可以手动刷新当前邮箱。</p>
-              </div>
+              <div className="py-12 text-center text-sm text-muted-foreground">正在加载...</div>
             ) : messagesError ? (
-              <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-12 text-center text-sm text-destructive">
-                <p className="font-medium">邮件加载失败</p>
-                <p className="mt-2">{messagesError}</p>
-                <p className="mt-2 text-xs text-destructive/80">你可以立即重试，或稍后刷新当前邮箱再查看。</p>
+              <div className="space-y-4 py-12 text-center text-sm text-destructive">
+                <p>{messagesError}</p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-4"
                   onClick={() => selectedMailboxId && void fetchMessages(selectedMailboxId)}
                   disabled={!canRetryMessages}
                 >
-                  重试加载邮件
+                  重试
                 </Button>
               </div>
             ) : messages.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-                <p>这个邮箱暂时还没有收到邮件。</p>
-                <p className="mt-2">{emptyMailboxMessage}</p>
-              </div>
+              <div className="py-12 text-center text-sm text-muted-foreground">还没有邮件。</div>
             ) : isDesktop ? (
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
@@ -814,7 +762,7 @@ export function TempEmailManager() {
                           onClick={() => handleMarkRead(message.id)}
                           disabled={mutatingMessageId === message.id}
                         >
-                          标记为已读
+                          标记已读
                         </Button>
                       )}
                       <Button
@@ -825,7 +773,7 @@ export function TempEmailManager() {
                         disabled={mutatingMessageId === message.id}
                       >
                         <Trash2 className="h-4 w-4" />
-                        删除邮件
+                        删除
                       </Button>
                     </div>
                   </div>

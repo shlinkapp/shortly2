@@ -125,6 +125,7 @@ The README documents the main env vars. The ones that affect behavior most are:
 ### Brand Personality
 
 - Calm, professional, trustworthy.
+- Beyond that baseline, the interface should also feel high-control and low-pressure: users should feel they can move quickly, understand consequences, and complete tasks without friction or visual noise.
 - The interface should feel efficient and credible rather than playful or flashy.
 
 ### Aesthetic Direction
@@ -132,13 +133,15 @@ The README documents the main env vars. The ones that affect behavior most are:
 - Light mode first.
 - Keep the current restrained, neutral shadcn-based direction with Geist typography, subtle borders, low-saturation surfaces, and clean hierarchy.
 - Avoid bright or neon hues, crypto/startup-hype aesthetics, and glossy generic AI-template styling.
+- Explicit anti-references: avoid AI SaaS template clichés, hacker/cyber-neon styling, overly heavy enterprise-admin visuals, and toy-like social-app energy.
 
 ### Design Principles
 
 - Prioritize clarity over novelty — primary actions, status, and link data should read instantly.
 - Build trust through restraint — use neutral color, disciplined spacing, and predictable patterns instead of visual hype.
-- Keep flows lightweight — creation, copying, review, and admin tasks should feel fast and low-friction.
+- Create a sense of efficient control — users should feel they can act quickly without losing situational awareness.
+- Keep flows lightweight — creation, copying, review, and admin tasks should feel fast, direct, and low-pressure.
 - Design for operational readability — tables, badges, dialogs, and empty states should support scanning and decision-making.
 - Use motion sparingly — prefer subtle transitions and avoid effects that add noise or discomfort.
 - Reduced motion matters — do not rely on animation-heavy interactions.
-- Avoid generic AI aesthetics — prefer product polish over trend-driven decoration.
+- Avoid obvious template aesthetics — no glossy AI clichés, no cyber-security theatrics, no bloated enterprise heaviness, and no playful toy-app tone.
