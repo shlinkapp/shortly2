@@ -86,7 +86,7 @@ export default async function HomePage({
           <span>{new Date().getFullYear()} {siteName}.</span>
         </span>
         <Link
-          href="https://github.com/shlinkapp/shortly2"
+          href="https://github.com/uvexz/shortly"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"

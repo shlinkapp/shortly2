@@ -25,7 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/utils"
 import { useMediaQuery } from "@/lib/use-media-query"
-import { Copy, Eye, MailPlus, RefreshCw, Trash2 } from "lucide-react"
+import { Copy, MailPlus, RefreshCw, Trash2 } from "lucide-react"
 
 interface MailboxRecord {
   id: string
@@ -340,12 +340,12 @@ function renderableHtmlExists(detail: MessageDetailRecord) {
   return Boolean(detail.html.trim())
 }
 
-function getOpenMessageButtonLabel() {
-  return "查看"
+function getOpenMessageSubjectButtonClassName() {
+  return "truncate text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 }
 
-function getOpenMessageButtonIcon() {
-  return Eye
+function getOpenMessageSubjectMobileButtonClassName() {
+  return "w-full text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 }
 
 function getMessageDetailCopy(detail: MessageDetailRecord) {
@@ -473,7 +473,7 @@ function getPreBlockClassName() {
 }
 
 function getHtmlFrameClassName() {
-  return "h-[55vh] w-full rounded-lg border bg-white"
+  return "h-[calc(100vh-24rem)] min-h-[24rem] w-full rounded-lg border bg-white"
 }
 
 function getEmptyStateClassName() {
@@ -493,7 +493,7 @@ function getAttachmentMetaClassName() {
 }
 
 function getDetailContainerClassName() {
-  return "space-y-4"
+  return "flex min-h-0 flex-1 flex-col gap-4"
 }
 
 function getMetadataLabelClassName() {
@@ -513,11 +513,11 @@ function getDialogDescriptionClassName() {
 }
 
 function getMessageDialogFooterClassName() {
-  return "justify-between gap-2 sm:justify-between"
+  return "border-t pt-4 justify-between gap-2 sm:justify-between"
 }
 
 function getDialogBodyClassName() {
-  return "space-y-4"
+  return "flex min-h-0 flex-1 flex-col gap-4"
 }
 
 function getTabsClassName() {
@@ -557,7 +557,7 @@ function getHeaderValueClassName() {
 }
 
 function getResponsiveContentClassName() {
-  return "max-h-[70vh] overflow-auto pr-1"
+  return "flex min-h-0 flex-1 flex-col overflow-hidden"
 }
 
 function getAttachmentMeta(attachment: MessageAttachmentRecord) {
@@ -586,18 +586,6 @@ function getIframeSrc(detail: MessageDetailRecord | null) {
 
 function getOpenDetailErrorMessage() {
   return "加载邮件内容失败"
-}
-
-function getOpenDetailButtonVariant(): "ghost" {
-  return "ghost"
-}
-
-function getOpenDetailButtonSize(): "sm" {
-  return "sm"
-}
-
-function getMobileOpenDetailButtonVariant(): "outline" {
-  return "outline"
 }
 
 function getDetailRetryButtonVariant(): "outline" {
@@ -777,10 +765,6 @@ function getSelectedMessageTitle(selectedMessage: MessageRecord | null) {
   return selectedMessage ? getMessageTitle(selectedMessage) : getNoMessageSelectedCopy()
 }
 
-function getOpenMessageIcon() {
-  return getOpenMessageButtonIcon()
-}
-
 function getMessageDetailAriaTitle() {
   return getMessageDialogAriaLabel()
 }
@@ -825,24 +809,8 @@ function getMessageDetailHtmlTitle() {
   return getHtmlFrameTitle()
 }
 
-function getMessageOpenButtonLabel() {
-  return getOpenMessageButtonLabel()
-}
-
-function getMessageOpenButtonVariant() {
-  return getOpenDetailButtonVariant()
-}
-
-function getMessageOpenButtonSize() {
-  return getOpenDetailButtonSize()
-}
-
-function getMessageOpenButtonMobileVariant() {
-  return getMobileOpenDetailButtonVariant()
-}
-
 function getMessageDetailDialogClassName() {
-  return "w-[calc(100vw-2rem)] max-w-5xl"
+  return "flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0"
 }
 
 function getMessageDetailHasHtml(detail: MessageDetailRecord | null) {
@@ -951,6 +919,14 @@ function getMessageDetailResponsiveContentClassName() {
 
 function getMessageDetailActionsClassName() {
   return getMessageActionsClassName()
+}
+
+function getMessageOpenSubjectButtonClassName() {
+  return getOpenMessageSubjectButtonClassName()
+}
+
+function getMessageOpenSubjectMobileButtonClassName() {
+  return getOpenMessageSubjectMobileButtonClassName()
 }
 
 function getMessageDetailInlineMutedClassName() {
@@ -1269,7 +1245,6 @@ export function TempEmailManager() {
   const selectedMessageId = getSelectedMessageIdValue(selectedMessage)
   const selectedDetailTab = getMessageDetailSelectedTab(messageDetail, messageDetailTab)
   const messageDialogOpen = getMessageDialogOpen(selectedMessage)
-  const OpenMessageIcon = getOpenMessageIcon()
 
   useEffect(() => {
     if (!selectedMailboxId) {
@@ -1678,7 +1653,14 @@ export function TempEmailManager() {
                         </TableCell>
                         <TableCell>
                           <div className="max-w-[280px]">
-                            <p className="truncate text-sm">{getMessageTitle(message)}</p>
+                            <button
+                              type="button"
+                              className={getMessageOpenSubjectButtonClassName()}
+                              onClick={() => handleOpenMessage(message)}
+                              disabled={mutatingMessageId === message.id && isSelectedMessage(message, selectedMessage)}
+                            >
+                              {getMessageTitle(message)}
+                            </button>
                             <p className="mt-1 truncate text-xs text-muted-foreground">{getMessagePreviewForList(message)}</p>
                           </div>
                         </TableCell>
@@ -1695,15 +1677,6 @@ export function TempEmailManager() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant={getMessageOpenButtonVariant()}
-                              size={getMessageOpenButtonSize()}
-                              onClick={() => handleOpenMessage(message)}
-                              disabled={mutatingMessageId === message.id && isSelectedMessage(message, selectedMessage)}
-                            >
-                              <OpenMessageIcon className="h-4 w-4" />
-                              {getMessageOpenButtonLabel()}
-                            </Button>
                             {!message.isRead && (
                               <Button
                                 variant="ghost"
@@ -1751,21 +1724,19 @@ export function TempEmailManager() {
                     </div>
 
                     <div className="mt-3 space-y-1">
-                      <p className="text-sm">{getMessageTitle(message)}</p>
+                      <button
+                        type="button"
+                        className={getMessageOpenSubjectMobileButtonClassName()}
+                        onClick={() => handleOpenMessage(message)}
+                        disabled={mutatingMessageId === message.id && isSelectedMessage(message, selectedMessage)}
+                      >
+                        {getMessageTitle(message)}
+                      </button>
                       <p className="line-clamp-2 text-xs text-muted-foreground">{getMessagePreviewForList(message)}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(message.receivedAt)}</p>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        variant={getMessageOpenButtonMobileVariant()}
-                        size="sm"
-                        onClick={() => handleOpenMessage(message)}
-                        disabled={mutatingMessageId === message.id && isSelectedMessage(message, selectedMessage)}
-                      >
-                        <OpenMessageIcon className="h-4 w-4" />
-                        {getMessageOpenButtonLabel()}
-                      </Button>
                       {!message.isRead && (
                         <Button
                           variant="outline"
