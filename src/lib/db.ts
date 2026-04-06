@@ -129,7 +129,9 @@ async function _initDb() {
       id TEXT PRIMARY KEY,
       host TEXT NOT NULL UNIQUE,
       supports_short_links INTEGER NOT NULL DEFAULT 0,
+      short_link_min_slug_length INTEGER NOT NULL DEFAULT 1,
       supports_temp_email INTEGER NOT NULL DEFAULT 0,
+      temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1,
       is_active INTEGER NOT NULL DEFAULT 1,
       is_default_short_domain INTEGER NOT NULL DEFAULT 0,
       is_default_email_domain INTEGER NOT NULL DEFAULT 0,
@@ -255,6 +257,7 @@ async function _initDb() {
   await Promise.all([
     ensureLegacyShortLinkColumns(),
     ensureLegacySiteSettingColumns(),
+    ensureLegacySiteDomainColumns(),
   ])
 
   await ensureLegacyShortLinkDomainSlugMigration()
@@ -296,6 +299,11 @@ async function ensureLegacySiteSettingColumns() {
     ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10"),
     ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
   ])
+}
+
+async function ensureLegacySiteDomainColumns() {
+  await ensureColumn("site_domain", "short_link_min_slug_length", "short_link_min_slug_length INTEGER NOT NULL DEFAULT 1")
+  await ensureColumn("site_domain", "temp_email_min_local_part_length", "temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1")
 }
 
 async function rebuildLegacyShortLinkTable() {

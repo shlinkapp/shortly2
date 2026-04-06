@@ -14,10 +14,12 @@ export async function GET() {
     emailDomains: emailDomains.map((item) => ({
       host: item.host,
       isDefault: item.isDefaultEmailDomain,
+      minLocalPartLength: item.minLocalPartLength,
     })),
     shortDomains: shortDomains.map((item) => ({
       host: item.host,
       isDefault: item.isDefaultShortDomain,
+      minSlugLength: item.minSlugLength,
     })),
   })
 }

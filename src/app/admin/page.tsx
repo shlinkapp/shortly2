@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { AdminClient } from "./admin-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminPage() {
   await initDb()
   const session = await auth.api.getSession({ headers: await headers() })

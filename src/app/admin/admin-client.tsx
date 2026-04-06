@@ -90,7 +90,9 @@ interface SiteDomain {
   id: string
   host: string
   supportsShortLinks: boolean
+  shortLinkMinSlugLength: number
   supportsTempEmail: boolean
+  tempEmailMinLocalPartLength: number
   isActive: boolean
   isDefaultShortDomain: boolean
   isDefaultEmailDomain: boolean
@@ -100,7 +102,9 @@ interface SiteDomain {
 interface DomainFormState {
   host: string
   supportsShortLinks: boolean
+  shortLinkMinSlugLength: number
   supportsTempEmail: boolean
+  tempEmailMinLocalPartLength: number
   isActive: boolean
   isDefaultShortDomain: boolean
   isDefaultEmailDomain: boolean
@@ -171,7 +175,9 @@ interface AdminClientProps {
 const initialDomainForm: DomainFormState = {
   host: "",
   supportsShortLinks: false,
+  shortLinkMinSlugLength: 1,
   supportsTempEmail: false,
+  tempEmailMinLocalPartLength: 1,
   isActive: true,
   isDefaultShortDomain: false,
   isDefaultEmailDomain: false,
@@ -476,7 +482,9 @@ export function AdminClient({ user }: AdminClientProps) {
     setDomainForm({
       host: domain.host,
       supportsShortLinks: domain.supportsShortLinks,
+      shortLinkMinSlugLength: domain.shortLinkMinSlugLength,
       supportsTempEmail: domain.supportsTempEmail,
+      tempEmailMinLocalPartLength: domain.tempEmailMinLocalPartLength,
       isActive: domain.isActive,
       isDefaultShortDomain: domain.isDefaultShortDomain,
       isDefaultEmailDomain: domain.isDefaultEmailDomain,
@@ -595,7 +603,26 @@ export function AdminClient({ user }: AdminClientProps) {
   }
 
   function updateDomainForm<K extends keyof DomainFormState>(key: K, value: DomainFormState[K]) {
-    setDomainForm((prev) => ({ ...prev, [key]: value }))
+    setDomainForm((prev) => {
+      const next = { ...prev, [key]: value }
+
+      if (key === "supportsShortLinks" && !value) {
+        next.shortLinkMinSlugLength = 1
+        next.isDefaultShortDomain = false
+      }
+
+      if (key === "supportsTempEmail" && !value) {
+        next.tempEmailMinLocalPartLength = 1
+        next.isDefaultEmailDomain = false
+      }
+
+      if (key === "isActive" && !value) {
+        next.isDefaultShortDomain = false
+        next.isDefaultEmailDomain = false
+      }
+
+      return next
+    })
   }
 
   function getEmailPreview(text: string, html: string) {
@@ -1314,8 +1341,12 @@ export function AdminClient({ user }: AdminClientProps) {
                               <TableCell className="font-mono text-sm">{domain.host}</TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-2">
-                                  {domain.supportsShortLinks && <Badge variant="secondary">短链</Badge>}
-                                  {domain.supportsTempEmail && <Badge variant="secondary">邮箱</Badge>}
+                                  {domain.supportsShortLinks && (
+                                    <Badge variant="secondary">短链 ≥ {domain.shortLinkMinSlugLength}</Badge>
+                                  )}
+                                  {domain.supportsTempEmail && (
+                                    <Badge variant="secondary">邮箱前缀 ≥ {domain.tempEmailMinLocalPartLength}</Badge>
+                                  )}
                                   {!domain.supportsShortLinks && !domain.supportsTempEmail && (
                                     <span className="text-sm text-muted-foreground">—</span>
                                   )}
@@ -1443,6 +1474,40 @@ export function AdminClient({ user }: AdminClientProps) {
                 默认邮箱域名
               </label>
             </div>
+
+            {domainForm.supportsShortLinks && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="domainShortLinkMinSlugLength">短链最短后缀长度</Label>
+                <Input
+                  id="domainShortLinkMinSlugLength"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={domainForm.shortLinkMinSlugLength}
+                  onChange={(e) =>
+                    updateDomainForm("shortLinkMinSlugLength", Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1)))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">自定义短链后缀少于该长度时将被拒绝。</p>
+              </div>
+            )}
+
+            {domainForm.supportsTempEmail && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="domainTempEmailMinLocalPartLength">邮箱前缀最短长度</Label>
+                <Input
+                  id="domainTempEmailMinLocalPartLength"
+                  type="number"
+                  min="1"
+                  max="64"
+                  value={domainForm.tempEmailMinLocalPartLength}
+                  onChange={(e) =>
+                    updateDomainForm("tempEmailMinLocalPartLength", Math.min(64, Math.max(1, parseInt(e.target.value, 10) || 1)))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">邮箱地址中 @ 前的前缀少于该长度时将被拒绝。</p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDomainDialogOpen(false)}>

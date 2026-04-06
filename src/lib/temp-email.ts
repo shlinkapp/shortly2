@@ -91,6 +91,29 @@ type InboundEmailContext = {
   receivedAt: Date
 }
 
+type TempMessageHeader = {
+  name: string
+  value: string
+}
+
+type TempMessageContact = {
+  name?: string | null
+  address?: string | null
+}
+
+function parseStoredJsonArray<T>(value: string | null | undefined): T[] {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
+
 function normalizeAttachments(payload: InboundEmailPayload) {
   return Array.isArray(payload.attachments) ? payload.attachments : []
 }
@@ -301,6 +324,10 @@ export async function createTempMailboxForUser(userId: string, emailAddress: str
     return { error: "This email domain is not enabled" as const }
   }
 
+  if (parsed.localPart.length < allowedDomain.minLocalPartLength) {
+    return { error: `邮箱前缀至少需要 ${allowedDomain.minLocalPartLength} 个字符` as const }
+  }
+
   const finalEmailAddress = `${parsed.localPart}@${allowedDomain.host}`
   const existing = await db
     .select({ id: tempMailbox.id })
@@ -409,6 +436,69 @@ export async function listTempMessagesForMailbox(userId: string, mailboxId: stri
     page,
     limit,
     totalPages: Math.max(1, Math.ceil(total / limit)),
+  }
+}
+
+export async function getTempMessageDetail(userId: string, messageRowId: string) {
+  const message = await db
+    .select({
+      id: tempEmailMessage.id,
+      mailboxId: tempEmailMessage.mailboxId,
+      mailboxEmailAddress: tempMailbox.emailAddress,
+      messageId: tempEmailMessage.messageId,
+      from: tempEmailMessage.from,
+      fromName: tempEmailMessage.fromName,
+      subject: tempEmailMessage.subject,
+      text: tempEmailMessage.text,
+      html: tempEmailMessage.html,
+      receivedAt: tempEmailMessage.receivedAt,
+      isRead: tempEmailMessage.isRead,
+      ccJson: tempEmailMessage.ccJson,
+      replyToJson: tempEmailMessage.replyToJson,
+      headersJson: tempEmailMessage.headersJson,
+    })
+    .from(tempEmailMessage)
+    .innerJoin(tempMailbox, eq(tempMailbox.id, tempEmailMessage.mailboxId))
+    .where(and(eq(tempEmailMessage.id, messageRowId), eq(tempMailbox.userId, userId)))
+    .get()
+
+  if (!message) {
+    return null
+  }
+
+  const attachments = await db
+    .select({
+      id: tempEmailAttachment.id,
+      filename: tempEmailAttachment.filename,
+      mimeType: tempEmailAttachment.mimeType,
+      size: tempEmailAttachment.size,
+    })
+    .from(tempEmailAttachment)
+    .where(eq(tempEmailAttachment.messageId, messageRowId))
+    .orderBy(desc(tempEmailAttachment.createdAt))
+
+  const text = message.text || ""
+  const html = message.html || ""
+
+  return {
+    id: message.id,
+    mailboxId: message.mailboxId,
+    mailboxEmailAddress: message.mailboxEmailAddress,
+    messageId: message.messageId,
+    from: message.from,
+    fromName: message.fromName,
+    subject: message.subject,
+    text,
+    html,
+    receivedAt: message.receivedAt,
+    isRead: message.isRead,
+    cc: parseStoredJsonArray<TempMessageContact>(message.ccJson),
+    replyTo: parseStoredJsonArray<TempMessageContact>(message.replyToJson),
+    headers: parseStoredJsonArray<TempMessageHeader>(message.headersJson),
+    attachments,
+    hasText: Boolean(text.trim()),
+    hasHtml: Boolean(html.trim()),
+    hasAttachments: attachments.length > 0,
   }
 }
 

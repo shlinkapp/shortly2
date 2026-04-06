@@ -11,7 +11,9 @@ import { z } from "zod"
 const createDomainSchema = z.object({
   host: z.string().trim().min(1).max(255),
   supportsShortLinks: z.boolean().optional().default(false),
+  shortLinkMinSlugLength: z.number().int().min(1).max(50).optional().default(1),
   supportsTempEmail: z.boolean().optional().default(false),
+  tempEmailMinLocalPartLength: z.number().int().min(1).max(64).optional().default(1),
   isActive: z.boolean().optional().default(true),
   isDefaultShortDomain: z.boolean().optional().default(false),
   isDefaultEmailDomain: z.boolean().optional().default(false),
@@ -63,11 +65,16 @@ export async function POST(req: NextRequest) {
 
   const {
     supportsShortLinks,
+    shortLinkMinSlugLength,
     supportsTempEmail,
+    tempEmailMinLocalPartLength,
     isActive,
     isDefaultShortDomain,
     isDefaultEmailDomain,
   } = parsed.data
+
+  const normalizedShortLinkMinSlugLength = supportsShortLinks ? shortLinkMinSlugLength : 1
+  const normalizedTempEmailMinLocalPartLength = supportsTempEmail ? tempEmailMinLocalPartLength : 1
 
   if (isDefaultShortDomain && (!supportsShortLinks || !isActive)) {
     return NextResponse.json({ error: "Default short-link domain must be active and support short links" }, { status: 400 })
@@ -87,7 +94,9 @@ export async function POST(req: NextRequest) {
     id,
     host: normalizedHost,
     supportsShortLinks,
+    shortLinkMinSlugLength: normalizedShortLinkMinSlugLength,
     supportsTempEmail,
+    tempEmailMinLocalPartLength: normalizedTempEmailMinLocalPartLength,
     isActive,
     isDefaultShortDomain,
     isDefaultEmailDomain,

@@ -76,7 +76,11 @@ export async function createShortLink(
     return { error: input.messages.invalidCustomSlugError, status: 400 }
   }
 
-  const slug = input.customSlug || generateSlug()
+  if (input.customSlug && input.customSlug.length < shortDomain.minSlugLength) {
+    return { error: `自定义后缀至少需要 ${shortDomain.minSlugLength} 个字符`, status: 400 }
+  }
+
+  const slug = input.customSlug || generateSlug(Math.max(5, shortDomain.minSlugLength))
 
   const existingSlug = await db
     .select({ id: shortLink.id })

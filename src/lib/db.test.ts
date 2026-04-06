@@ -123,7 +123,7 @@ describe("db bootstrap regression checks", () => {
   it("limits runtime schema repair to named legacy compatibility helpers", async () => {
     const dbSource = await readSource(dbPath)
 
-    expect(dbSource).toContain("await Promise.all([\n    ensureLegacyShortLinkColumns(),\n    ensureLegacySiteSettingColumns(),\n  ])")
+    expect(dbSource).toContain("await Promise.all([\n    ensureLegacyShortLinkColumns(),\n    ensureLegacySiteSettingColumns(),\n    ensureLegacySiteDomainColumns(),\n  ])")
     expect(dbSource).toContain("await ensureLegacyShortLinkDomainSlugMigration()")
     expect(dbSource).not.toContain('ensureColumn("session"')
     expect(dbSource).not.toContain('ensureColumn("account"')
@@ -139,14 +139,16 @@ describe("db bootstrap regression checks", () => {
     expect(dbSource).toContain("await rebuildLegacyShortLinkTable()")
   })
 
-  it("scopes runtime column backfills to legacy short_link and site_setting compatibility", async () => {
+  it("scopes runtime column backfills to named legacy compatibility helpers", async () => {
     const dbSource = await readSource(dbPath)
 
     expect(dbSource).toContain("async function ensureLegacyShortLinkColumns()")
     expect(dbSource).toContain("async function ensureLegacySiteSettingColumns()")
+    expect(dbSource).toContain("async function ensureLegacySiteDomainColumns()")
     expect(dbSource).toContain('ensureColumn("short_link", "expires_at", "expires_at INTEGER")')
     expect(dbSource).toContain('ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10")')
-    expect(dbSource).not.toContain('ensureColumn("site_domain"')
+    expect(dbSource).toContain('ensureColumn("site_domain", "short_link_min_slug_length", "short_link_min_slug_length INTEGER NOT NULL DEFAULT 1")')
+    expect(dbSource).toContain('ensureColumn("site_domain", "temp_email_min_local_part_length", "temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1")')
     expect(dbSource).not.toContain('ensureColumn("api_key"')
   })
 
@@ -169,10 +171,10 @@ describe("db bootstrap regression checks", () => {
     }
   })
 
-  it("keeps schema names out of the dynamic ensureColumn backfill list once bootstrapped inline", async () => {
+  it("keeps runtime backfills limited to explicit legacy helpers", async () => {
     const dbSource = await readSource(dbPath)
 
-    expect(dbSource).not.toContain('ensureColumn("site_domain"')
+    expect(dbSource).toContain("async function ensureLegacySiteDomainColumns()")
     expect(dbSource).not.toContain('ensureColumn("api_key"')
   })
 

@@ -19,6 +19,7 @@ import Link from "next/link"
 interface ShortDomainOption {
   host: string
   isDefault: boolean
+  minSlugLength: number
 }
 
 interface DomainsResponse {
@@ -156,12 +157,21 @@ export function ShortLinkCreator({
     }
   }, [user])
 
+  const selectedDomainConfig = useMemo(
+    () => shortDomains.find((item) => item.host === selectedDomain) ?? null,
+    [selectedDomain, shortDomains]
+  )
+  const selectedMinSlugLength = selectedDomainConfig?.minSlugLength ?? 1
+  const normalizedCustomSlug = customSlug.trim()
+  const customSlugTooShort = normalizedCustomSlug.length > 0 && normalizedCustomSlug.length < selectedMinSlugLength
+
   const canSubmit = useMemo(() => {
     if (!url.trim()) return false
     if (user && !domainsLoading && shortDomains.length < 1) return false
     if (user && shortDomains.length > 0 && !selectedDomain) return false
+    if (user && customSlugTooShort) return false
     return true
-  }, [domainsLoading, selectedDomain, shortDomains.length, url, user])
+  }, [customSlugTooShort, domainsLoading, selectedDomain, shortDomains.length, url, user])
 
   function handleUrlChange(value: string) {
     setUrl(value)
@@ -177,6 +187,11 @@ export function ShortLinkCreator({
   }
 
   function handleShorten() {
+    if (customSlugTooShort) {
+      toast.error(`自定义后缀至少需要 ${selectedMinSlugLength} 个字符`)
+      return
+    }
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/shorten", {
@@ -337,7 +352,9 @@ export function ShortLinkCreator({
                 className="h-10 bg-background"
                 maxLength={50}
               />
-              <p className="text-[11px] text-muted-foreground/80">{getFieldHint(mode, "customSlug")}</p>
+              <p className={`text-[11px] ${customSlugTooShort ? "text-destructive" : "text-muted-foreground/80"}`}>
+                当前域名要求后缀至少 {selectedMinSlugLength} 个字符。{getFieldHint(mode, "customSlug")}
+              </p>
             </div>
           </div>
 

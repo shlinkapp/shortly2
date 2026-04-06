@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { DashboardClient } from "./dashboard-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage({
   searchParams,
 }: {

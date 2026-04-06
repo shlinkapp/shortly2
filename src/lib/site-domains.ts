@@ -6,11 +6,13 @@ import { siteDomain } from "@/lib/schema"
 type ActiveShortDomain = {
   host: string
   isDefaultShortDomain: boolean
+  minSlugLength: number
 }
 
 type ActiveEmailDomain = {
   host: string
   isDefaultEmailDomain: boolean
+  minLocalPartLength: number
 }
 
 type SiteDomainDefaultsInput = {
@@ -22,7 +24,9 @@ type CreateSiteDomainRecordInput = {
   id: string
   host: string
   supportsShortLinks: boolean
+  shortLinkMinSlugLength: number
   supportsTempEmail: boolean
+  tempEmailMinLocalPartLength: number
   isActive: boolean
   isDefaultShortDomain: boolean
   isDefaultEmailDomain: boolean
@@ -32,7 +36,9 @@ type CreateSiteDomainRecordInput = {
 type UpdateSiteDomainRecordInput = {
   host: string
   supportsShortLinks: boolean
+  shortLinkMinSlugLength: number
   supportsTempEmail: boolean
+  tempEmailMinLocalPartLength: number
   isActive: boolean
   isDefaultShortDomain: boolean
   isDefaultEmailDomain: boolean
@@ -54,6 +60,7 @@ const getCachedActiveShortDomains = unstable_cache(
       .select({
         host: siteDomain.host,
         isDefaultShortDomain: siteDomain.isDefaultShortDomain,
+        minSlugLength: siteDomain.shortLinkMinSlugLength,
       })
       .from(siteDomain)
       .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsShortLinks, true)))
@@ -70,6 +77,7 @@ const getCachedActiveEmailDomains = unstable_cache(
       .select({
         host: siteDomain.host,
         isDefaultEmailDomain: siteDomain.isDefaultEmailDomain,
+        minLocalPartLength: siteDomain.tempEmailMinLocalPartLength,
       })
       .from(siteDomain)
       .where(and(eq(siteDomain.isActive, true), eq(siteDomain.supportsTempEmail, true)))

@@ -11,7 +11,9 @@ import { z } from "zod"
 const updateDomainSchema = z.object({
   host: z.string().trim().min(1).max(255).optional(),
   supportsShortLinks: z.boolean().optional(),
+  shortLinkMinSlugLength: z.number().int().min(1).max(50).optional(),
   supportsTempEmail: z.boolean().optional(),
+  tempEmailMinLocalPartLength: z.number().int().min(1).max(64).optional(),
   isActive: z.boolean().optional(),
   isDefaultShortDomain: z.boolean().optional(),
   isDefaultEmailDomain: z.boolean().optional(),
@@ -61,6 +63,12 @@ export async function PATCH(
 
   const nextSupportsShortLinks = parsed.data.supportsShortLinks ?? existing.supportsShortLinks
   const nextSupportsTempEmail = parsed.data.supportsTempEmail ?? existing.supportsTempEmail
+  const nextShortLinkMinSlugLength = nextSupportsShortLinks
+    ? (parsed.data.shortLinkMinSlugLength ?? existing.shortLinkMinSlugLength)
+    : 1
+  const nextTempEmailMinLocalPartLength = nextSupportsTempEmail
+    ? (parsed.data.tempEmailMinLocalPartLength ?? existing.tempEmailMinLocalPartLength)
+    : 1
   const nextIsActive = parsed.data.isActive ?? existing.isActive
   const nextIsDefaultShortDomain = parsed.data.isDefaultShortDomain ?? existing.isDefaultShortDomain
   const nextIsDefaultEmailDomain = parsed.data.isDefaultEmailDomain ?? existing.isDefaultEmailDomain
@@ -81,7 +89,9 @@ export async function PATCH(
   const updated = await writeUpdatedSiteDomain(id, {
     host: normalizedHost,
     supportsShortLinks: nextSupportsShortLinks,
+    shortLinkMinSlugLength: nextShortLinkMinSlugLength,
     supportsTempEmail: nextSupportsTempEmail,
+    tempEmailMinLocalPartLength: nextTempEmailMinLocalPartLength,
     isActive: nextIsActive,
     isDefaultShortDomain: nextIsDefaultShortDomain,
     isDefaultEmailDomain: nextIsDefaultEmailDomain,
