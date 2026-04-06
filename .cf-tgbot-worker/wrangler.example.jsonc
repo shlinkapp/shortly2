@@ -20,7 +20,6 @@
 			"id": "replace-with-your-kv-namespace-id"
 		}
 	]
-
 	// TELEGRAM_BOT_TOKEN 是敏感信息，请使用：
 	// wrangler secret put TELEGRAM_BOT_TOKEN
 	//

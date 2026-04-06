@@ -51,3 +51,7 @@ next-env.d.ts
 
 # drizzle
 /drizzle
+
+# wrangler
+.cf-email-forwarding-worker/wrangler.jsonc
+.cf-tgbot-worker/wrangler.jsonc
