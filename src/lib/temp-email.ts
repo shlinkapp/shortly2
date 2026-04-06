@@ -101,6 +101,39 @@ type TempMessageContact = {
   address?: string | null
 }
 
+type TempMessageAttachmentRecord = {
+  id: string
+  filename: string
+  mimeType: string
+  size: number
+}
+
+async function listTempMessageAttachments(messageRowId: string): Promise<TempMessageAttachmentRecord[]> {
+  return db
+    .select({
+      id: tempEmailAttachment.id,
+      filename: tempEmailAttachment.filename,
+      mimeType: tempEmailAttachment.mimeType,
+      size: tempEmailAttachment.size,
+    })
+    .from(tempEmailAttachment)
+    .where(eq(tempEmailAttachment.messageId, messageRowId))
+    .orderBy(desc(tempEmailAttachment.createdAt))
+}
+
+async function listArchivedTempMessageAttachments(archiveId: string): Promise<TempMessageAttachmentRecord[]> {
+  return db
+    .select({
+      id: tempEmailArchiveAttachment.id,
+      filename: tempEmailArchiveAttachment.filename,
+      mimeType: tempEmailArchiveAttachment.mimeType,
+      size: tempEmailArchiveAttachment.size,
+    })
+    .from(tempEmailArchiveAttachment)
+    .where(eq(tempEmailArchiveAttachment.archiveId, archiveId))
+    .orderBy(desc(tempEmailArchiveAttachment.createdAt))
+}
+
 function parseStoredJsonArray<T>(value: string | null | undefined): T[] {
   if (!value) {
     return []
@@ -466,17 +499,7 @@ export async function getTempMessageDetail(userId: string, messageRowId: string)
     return null
   }
 
-  const attachments = await db
-    .select({
-      id: tempEmailAttachment.id,
-      filename: tempEmailAttachment.filename,
-      mimeType: tempEmailAttachment.mimeType,
-      size: tempEmailAttachment.size,
-    })
-    .from(tempEmailAttachment)
-    .where(eq(tempEmailAttachment.messageId, messageRowId))
-    .orderBy(desc(tempEmailAttachment.createdAt))
-
+  const attachments = await listTempMessageAttachments(messageRowId)
   const text = message.text || ""
   const html = message.html || ""
 
@@ -496,6 +519,116 @@ export async function getTempMessageDetail(userId: string, messageRowId: string)
     replyTo: parseStoredJsonArray<TempMessageContact>(message.replyToJson),
     headers: parseStoredJsonArray<TempMessageHeader>(message.headersJson),
     attachments,
+    hasText: Boolean(text.trim()),
+    hasHtml: Boolean(html.trim()),
+    hasAttachments: attachments.length > 0,
+  }
+}
+
+export async function getAdminTempMessageDetail(messageRowId: string) {
+  const message = await db
+    .select({
+      id: tempEmailMessage.id,
+      mailboxId: tempEmailMessage.mailboxId,
+      mailboxEmailAddress: tempMailbox.emailAddress,
+      userId: tempMailbox.userId,
+      userName: user.name,
+      userEmail: user.email,
+      messageId: tempEmailMessage.messageId,
+      from: tempEmailMessage.from,
+      fromName: tempEmailMessage.fromName,
+      subject: tempEmailMessage.subject,
+      text: tempEmailMessage.text,
+      html: tempEmailMessage.html,
+      receivedAt: tempEmailMessage.receivedAt,
+      isRead: tempEmailMessage.isRead,
+      ccJson: tempEmailMessage.ccJson,
+      replyToJson: tempEmailMessage.replyToJson,
+      headersJson: tempEmailMessage.headersJson,
+    })
+    .from(tempEmailMessage)
+    .innerJoin(tempMailbox, eq(tempMailbox.id, tempEmailMessage.mailboxId))
+    .leftJoin(user, eq(user.id, tempMailbox.userId))
+    .where(eq(tempEmailMessage.id, messageRowId))
+    .get()
+
+  if (!message) {
+    return null
+  }
+
+  const attachments = await listTempMessageAttachments(messageRowId)
+  const text = message.text || ""
+  const html = message.html || ""
+
+  return {
+    id: message.id,
+    mailboxId: message.mailboxId,
+    mailboxEmailAddress: message.mailboxEmailAddress,
+    userId: message.userId,
+    userName: message.userName,
+    userEmail: message.userEmail,
+    messageId: message.messageId,
+    from: message.from,
+    fromName: message.fromName,
+    subject: message.subject,
+    text,
+    html,
+    receivedAt: message.receivedAt,
+    isRead: message.isRead,
+    cc: parseStoredJsonArray<TempMessageContact>(message.ccJson),
+    replyTo: parseStoredJsonArray<TempMessageContact>(message.replyToJson),
+    headers: parseStoredJsonArray<TempMessageHeader>(message.headersJson),
+    attachments,
+    hasText: Boolean(text.trim()),
+    hasHtml: Boolean(html.trim()),
+    hasAttachments: attachments.length > 0,
+  }
+}
+
+export async function getAdminArchivedTempMessageDetail(archiveId: string) {
+  const archive = await db
+    .select({
+      id: tempEmailArchive.id,
+      toEmail: tempEmailArchive.toEmail,
+      messageId: tempEmailArchive.messageId,
+      from: tempEmailArchive.from,
+      fromName: tempEmailArchive.fromName,
+      subject: tempEmailArchive.subject,
+      text: tempEmailArchive.text,
+      html: tempEmailArchive.html,
+      receivedAt: tempEmailArchive.receivedAt,
+      ccJson: tempEmailArchive.ccJson,
+      replyToJson: tempEmailArchive.replyToJson,
+      headersJson: tempEmailArchive.headersJson,
+      failureReason: tempEmailArchive.failureReason,
+    })
+    .from(tempEmailArchive)
+    .where(eq(tempEmailArchive.id, archiveId))
+    .get()
+
+  if (!archive) {
+    return null
+  }
+
+  const attachments = await listArchivedTempMessageAttachments(archiveId)
+  const text = archive.text || ""
+  const html = archive.html || ""
+
+  return {
+    id: archive.id,
+    toEmail: archive.toEmail,
+    messageId: archive.messageId,
+    from: archive.from,
+    fromName: archive.fromName,
+    subject: archive.subject,
+    text,
+    html,
+    receivedAt: archive.receivedAt,
+    cc: parseStoredJsonArray<TempMessageContact>(archive.ccJson),
+    replyTo: parseStoredJsonArray<TempMessageContact>(archive.replyToJson),
+    headers: parseStoredJsonArray<TempMessageHeader>(archive.headersJson),
+    attachments,
+    failureReason: archive.failureReason,
     hasText: Boolean(text.trim()),
     hasHtml: Boolean(html.trim()),
     hasAttachments: attachments.length > 0,

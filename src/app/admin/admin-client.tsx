@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { UserMenu } from "@/components/user-menu"
 import {
   createClientErrorReporter,
@@ -155,6 +155,73 @@ interface ArchivedInboundEmail {
   hasAttachments: boolean
 }
 
+interface MessageHeaderRecord {
+  name: string
+  value: string
+}
+
+interface MessageContactRecord {
+  name?: string | null
+  address?: string | null
+}
+
+interface MessageAttachmentRecord {
+  id: string
+  filename: string
+  mimeType: string
+  size: number
+}
+
+interface AdminMailboxMessageDetail {
+  id: string
+  mailboxId: string
+  mailboxEmailAddress: string
+  userId: string
+  userName: string | null
+  userEmail: string | null
+  messageId: string | null
+  from: string
+  fromName: string | null
+  subject: string
+  text: string
+  html: string
+  receivedAt: string | number
+  isRead: boolean
+  cc: MessageContactRecord[]
+  replyTo: MessageContactRecord[]
+  headers: MessageHeaderRecord[]
+  attachments: MessageAttachmentRecord[]
+  hasText: boolean
+  hasHtml: boolean
+  hasAttachments: boolean
+}
+
+interface ArchivedInboundEmailDetail {
+  id: string
+  toEmail: string
+  messageId: string | null
+  from: string
+  fromName: string | null
+  subject: string
+  text: string
+  html: string
+  receivedAt: string | number
+  cc: MessageContactRecord[]
+  replyTo: MessageContactRecord[]
+  headers: MessageHeaderRecord[]
+  attachments: MessageAttachmentRecord[]
+  failureReason: string
+  hasText: boolean
+  hasHtml: boolean
+  hasAttachments: boolean
+}
+
+type MessageDetailTab = "text" | "html" | "source"
+type AdminEmailSelection =
+  | { kind: "message"; summary: AdminMailboxMessage }
+  | { kind: "archive"; summary: ArchivedInboundEmail }
+type AdminEmailDetailRecord = AdminMailboxMessageDetail | ArchivedInboundEmailDetail
+
 interface PaginatedResponse<T> {
   data: T[]
   total: number
@@ -205,6 +272,81 @@ function getDomainDeleteHelpText(domain: SiteDomain) {
   return "删除后将无法恢复。"
 }
 
+function getDefaultDetailTab(): MessageDetailTab {
+  return "text"
+}
+
+function formatMessageContact(contact: MessageContactRecord) {
+  if (contact.name && contact.address) {
+    return `${contact.name} <${contact.address}>`
+  }
+
+  return contact.address || contact.name || ""
+}
+
+const iframeSandbox = "allow-popups-to-escape-sandbox"
+const iframeSrcDocPrefix = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><base target=\"_blank\"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#2563eb}</style></head><body>"
+const iframeSrcDocSuffix = "</body></html>"
+
+function buildIframeSrcDoc(html: string) {
+  return `${iframeSrcDocPrefix}${html}${iframeSrcDocSuffix}`
+}
+
+function getOpenMessageSubjectButtonClassName() {
+  return "truncate text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+}
+
+function getOpenMessageSubjectMobileButtonClassName() {
+  return "w-full text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+}
+
+function getMessageDetailDialogClassName() {
+  return "flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0"
+}
+
+function buildAdminEmailSource(detail: AdminEmailDetailRecord, selection: AdminEmailSelection) {
+  const lines: string[] = []
+
+  if (detail.messageId) {
+    lines.push(`Message-ID: ${detail.messageId}`)
+  }
+  lines.push(`From: ${detail.fromName ? `${detail.fromName} <${detail.from}>` : detail.from}`)
+  if (selection.kind === "message" && "mailboxEmailAddress" in detail) {
+    lines.push(`To: ${detail.mailboxEmailAddress}`)
+  } else if (selection.kind === "archive" && "toEmail" in detail) {
+    lines.push(`To: ${detail.toEmail}`)
+  }
+  if (detail.replyTo.length > 0) {
+    lines.push(`Reply-To: ${detail.replyTo.map(formatMessageContact).filter(Boolean).join(", ")}`)
+  }
+  if (detail.cc.length > 0) {
+    lines.push(`Cc: ${detail.cc.map(formatMessageContact).filter(Boolean).join(", ")}`)
+  }
+  lines.push(`Subject: ${detail.subject || "(无主题)"}`)
+  lines.push(`Date: ${formatDate(detail.receivedAt)}`)
+
+  if (selection.kind === "message" && "mailboxEmailAddress" in detail) {
+    lines.push(`Mailbox: ${detail.mailboxEmailAddress}`)
+    lines.push(`User: ${detail.userName || detail.userEmail || detail.userId}`)
+    lines.push(`Read: ${detail.isRead ? "yes" : "no"}`)
+  } else if (selection.kind === "archive" && "failureReason" in detail) {
+    lines.push(`Failure-Reason: ${detail.failureReason}`)
+  }
+
+  for (const header of detail.headers) {
+    if (!header?.name || !header?.value) continue
+    lines.push(`${header.name}: ${header.value}`)
+  }
+
+  if (detail.attachments.length > 0) {
+    lines.push(`Attachments: ${detail.attachments.map((attachment) => attachment.filename).join(", ")}`)
+  }
+
+  lines.push("", "--- TEXT ---", detail.text || "(无纯文本内容)", "", "--- HTML ---", detail.html || "(无 HTML 内容)")
+
+  return lines.join("\n")
+}
+
 export function AdminClient({ user }: AdminClientProps) {
   const [activeTab, setActiveTab] = useState("links")
   const [links, setLinks] = useState<AdminLink[]>([])
@@ -220,6 +362,12 @@ export function AdminClient({ user }: AdminClientProps) {
   const [emailSearch, setEmailSearch] = useState("")
   const [loadingEmailData, setLoadingEmailData] = useState(false)
   const [emailDataLoaded, setEmailDataLoaded] = useState(false)
+  const [selectedEmailItem, setSelectedEmailItem] = useState<AdminEmailSelection | null>(null)
+  const [emailDetail, setEmailDetail] = useState<AdminEmailDetailRecord | null>(null)
+  const [emailDetailError, setEmailDetailError] = useState<string | null>(null)
+  const [loadingEmailDetail, setLoadingEmailDetail] = useState(false)
+  const [emailDetailTab, setEmailDetailTab] = useState<MessageDetailTab>("text")
+  const latestEmailDetailRequestIdRef = useRef(0)
   const [settings, setSettings] = useState<SiteSettings>({
     siteName: "Shortly",
     siteUrl: "http://localhost:3000",
@@ -631,6 +779,79 @@ export function AdminClient({ user }: AdminClientProps) {
 
   function getMailboxOwnerLabel(item: { userName: string | null, userEmail: string | null }) {
     return item.userName || item.userEmail || "未知用户"
+  }
+
+  const emailDetailSource = useMemo(() => {
+    if (!selectedEmailItem || !emailDetail) {
+      return ""
+    }
+
+    return buildAdminEmailSource(emailDetail, selectedEmailItem)
+  }, [emailDetail, selectedEmailItem])
+
+  async function openEmailDetail(selection: AdminEmailSelection) {
+    const requestId = latestEmailDetailRequestIdRef.current + 1
+    latestEmailDetailRequestIdRef.current = requestId
+    setSelectedEmailItem(selection)
+    setEmailDetail(null)
+    setEmailDetailError(null)
+    setLoadingEmailDetail(true)
+    setEmailDetailTab(getDefaultDetailTab())
+
+    const endpoint = selection.kind === "message"
+      ? `/api/admin/emails/messages/${selection.summary.id}`
+      : `/api/admin/emails/archives/${selection.summary.id}`
+
+    try {
+      const res = await fetch(endpoint)
+      if (!res.ok) {
+        const body = await readOptionalJson<{ error?: string }>(res)
+        const message = getResponseErrorMessage(body, "加载邮件详情失败")
+        adminReporter.warn("fetch_admin_email_detail_failed_response", {
+          kind: selection.kind,
+          itemId: selection.summary.id,
+          status: res.status,
+        })
+        if (latestEmailDetailRequestIdRef.current !== requestId) {
+          return
+        }
+        setEmailDetailError(message)
+        return
+      }
+
+      const body = await res.json() as { data?: AdminEmailDetailRecord }
+      if (latestEmailDetailRequestIdRef.current !== requestId) {
+        return
+      }
+      setEmailDetail(body.data || null)
+    } catch (error) {
+      const message = getUserFacingErrorMessage(error, "加载邮件详情失败")
+      adminReporter.report("fetch_admin_email_detail_failed_exception", error, {
+        kind: selection.kind,
+        itemId: selection.summary.id,
+      })
+      if (latestEmailDetailRequestIdRef.current !== requestId) {
+        return
+      }
+      setEmailDetailError(message)
+    } finally {
+      if (latestEmailDetailRequestIdRef.current === requestId) {
+        setLoadingEmailDetail(false)
+      }
+    }
+  }
+
+  function handleEmailDetailDialogOpenChange(open: boolean) {
+    if (open) {
+      return
+    }
+
+    latestEmailDetailRequestIdRef.current += 1
+    setSelectedEmailItem(null)
+    setEmailDetail(null)
+    setEmailDetailError(null)
+    setLoadingEmailDetail(false)
+    setEmailDetailTab(getDefaultDetailTab())
   }
 
   return (
@@ -1087,7 +1308,13 @@ export function AdminClient({ user }: AdminClientProps) {
                                 <TableCell>
                                   <div className="max-w-[280px]">
                                     <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{message.subject || "(无主题)"}</p>
+                                    <button
+                                      type="button"
+                                      className={getOpenMessageSubjectButtonClassName()}
+                                      onClick={() => void openEmailDetail({ kind: "message", summary: message })}
+                                    >
+                                      {message.subject || "(无主题)"}
+                                    </button>
                                     <p className="mt-1 truncate text-xs text-muted-foreground">{getEmailPreview(message.text, message.html)}</p>
                                   </div>
                                 </TableCell>
@@ -1125,7 +1352,13 @@ export function AdminClient({ user }: AdminClientProps) {
                             </div>
                             <div className="mt-3 max-w-full">
                               <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
-                              <p className="truncate text-xs text-muted-foreground">{message.subject || "(无主题)"}</p>
+                              <button
+                                type="button"
+                                className={getOpenMessageSubjectMobileButtonClassName()}
+                                onClick={() => void openEmailDetail({ kind: "message", summary: message })}
+                              >
+                                {message.subject || "(无主题)"}
+                              </button>
                               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{getEmailPreview(message.text, message.html)}</p>
                               <p className="mt-2 text-xs text-muted-foreground">{formatDate(message.receivedAt)}</p>
                             </div>
@@ -1169,7 +1402,13 @@ export function AdminClient({ user }: AdminClientProps) {
                                 <TableCell>
                                   <div className="max-w-[280px]">
                                     <p className="truncate text-sm font-medium">{archive.fromName || archive.from}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{archive.subject || "(无主题)"}</p>
+                                    <button
+                                      type="button"
+                                      className={getOpenMessageSubjectButtonClassName()}
+                                      onClick={() => void openEmailDetail({ kind: "archive", summary: archive })}
+                                    >
+                                      {archive.subject || "(无主题)"}
+                                    </button>
                                     <p className="mt-1 truncate text-xs text-muted-foreground">{getEmailPreview(archive.text, archive.html)}</p>
                                   </div>
                                 </TableCell>
@@ -1203,7 +1442,13 @@ export function AdminClient({ user }: AdminClientProps) {
                             </div>
                             <div className="mt-3 max-w-full">
                               <p className="truncate text-sm font-medium">{archive.fromName || archive.from}</p>
-                              <p className="truncate text-xs text-muted-foreground">{archive.subject || "(无主题)"}</p>
+                              <button
+                                type="button"
+                                className={getOpenMessageSubjectMobileButtonClassName()}
+                                onClick={() => void openEmailDetail({ kind: "archive", summary: archive })}
+                              >
+                                {archive.subject || "(无主题)"}
+                              </button>
                               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{getEmailPreview(archive.text, archive.html)}</p>
                               <p className="mt-2 text-xs text-muted-foreground">{formatDate(archive.receivedAt)}</p>
                             </div>
@@ -1518,6 +1763,101 @@ export function AdminClient({ user }: AdminClientProps) {
                 {savingDomain ? "保存中..." : editingDomain ? "保存修改" : "创建域名"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedEmailItem} onOpenChange={handleEmailDetailDialogOpenChange}>
+        <DialogContent className={getMessageDetailDialogClassName()}>
+          <DialogHeader className="border-b pb-4 pr-8">
+            <DialogTitle className="truncate">{selectedEmailItem?.summary.subject || "(无主题)"}</DialogTitle>
+            <DialogDescription className="space-y-2 pt-2 text-xs sm:text-sm">
+              {selectedEmailItem?.kind === "message" ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">正常邮件</Badge>
+                    {emailDetail && "isRead" in emailDetail && (
+                      <Badge variant={emailDetail.isRead ? "outline" : "secondary"}>{emailDetail.isRead ? "已读" : "未读"}</Badge>
+                    )}
+                    {emailDetail?.hasAttachments && <Badge variant="outline">附件 {emailDetail.attachments.length}</Badge>}
+                  </div>
+                  <div className="space-y-1 text-muted-foreground">
+                    <p>发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
+                    <p>收件邮箱：{selectedEmailItem.summary.mailboxEmailAddress}</p>
+                    <p>所属用户：{getMailboxOwnerLabel(selectedEmailItem.summary)}</p>
+                    <p>时间：{formatDate(selectedEmailItem.summary.receivedAt)}</p>
+                  </div>
+                </>
+              ) : selectedEmailItem ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="destructive">{selectedEmailItem.summary.failureReason}</Badge>
+                    {emailDetail?.hasAttachments && <Badge variant="outline">附件 {emailDetail.attachments.length}</Badge>}
+                  </div>
+                  <div className="space-y-1 text-muted-foreground">
+                    <p>发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
+                    <p>目标邮箱：{selectedEmailItem.summary.toEmail}</p>
+                    <p>时间：{formatDate(selectedEmailItem.summary.receivedAt)}</p>
+                  </div>
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden py-4">
+            {loadingEmailDetail ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">正在加载邮件详情...</div>
+            ) : emailDetailError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-sm text-destructive">
+                <p>{emailDetailError}</p>
+                {selectedEmailItem && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => void openEmailDetail(selectedEmailItem)}>
+                    重试
+                  </Button>
+                )}
+              </div>
+            ) : emailDetail ? (
+              <Tabs value={emailDetailTab} onValueChange={(value) => setEmailDetailTab(value as MessageDetailTab)} className="flex h-full flex-col gap-4">
+                <TabsList className="w-fit">
+                  <TabsTrigger value="text">TXT</TabsTrigger>
+                  <TabsTrigger value="html">HTML</TabsTrigger>
+                  <TabsTrigger value="source">源码</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="text" className="mt-0 flex-1 overflow-hidden">
+                  <div className="h-full overflow-auto rounded-lg border bg-muted/20 p-4">
+                    {emailDetail.hasText ? (
+                      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">{emailDetail.text}</pre>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">该邮件没有纯文本内容。</div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="html" className="mt-0 flex-1 overflow-hidden">
+                  <div className="h-full overflow-hidden rounded-lg border bg-background">
+                    {emailDetail.hasHtml ? (
+                      <iframe
+                        title="邮件 HTML 预览"
+                        srcDoc={buildIframeSrcDoc(emailDetail.html)}
+                        sandbox={iframeSandbox}
+                        className="h-full w-full border-0"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">该邮件没有 HTML 内容。</div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="source" className="mt-0 flex-1 overflow-hidden">
+                  <div className="h-full overflow-auto rounded-lg border bg-muted/20 p-4">
+                    <pre className="whitespace-pre-wrap break-words text-xs leading-6 text-foreground">{emailDetailSource}</pre>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">没有可显示的邮件详情。</div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
