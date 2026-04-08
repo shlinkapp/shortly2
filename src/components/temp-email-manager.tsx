@@ -1050,8 +1050,11 @@ export function TempEmailManager() {
   }, [])
 
   const fetchMailboxes = useCallback(async (options?: { silent?: boolean }) => {
-    setLoadingMailboxes(true)
-    setMailboxesError(null)
+    const isSilent = options?.silent === true
+    if (!isSilent) {
+      setLoadingMailboxes(true)
+      setMailboxesError(null)
+    }
 
     try {
       const res = await fetch("/api/emails?page=1&limit=100")
@@ -1059,8 +1062,8 @@ export function TempEmailManager() {
       if (!res.ok) {
         const message = getResponseErrorMessage(body, "加载邮箱失败")
         tempEmailReporter.warn("fetch_mailboxes_failed_response", { status: res.status })
-        setMailboxesError(message)
-        if (!options?.silent) {
+        if (!isSilent) {
+          setMailboxesError(message)
           toast.error(message)
         }
         return
@@ -1068,6 +1071,7 @@ export function TempEmailManager() {
 
       const rows = body?.data || []
       hasShownMailboxUnavailableToastRef.current = false
+      setMailboxesError(null)
       setMailboxes(rows)
       setSelectedMailboxId((current) => getNextMailboxSelection(rows, current))
       if (rows.length === 0) {
@@ -1079,12 +1083,14 @@ export function TempEmailManager() {
     } catch (error) {
       const message = getUserFacingErrorMessage(error, "加载邮箱失败")
       tempEmailReporter.report("fetch_mailboxes_failed_exception", error)
-      setMailboxesError(message)
-      if (!options?.silent) {
+      if (!isSilent) {
+        setMailboxesError(message)
         toast.error(message)
       }
     } finally {
-      setLoadingMailboxes(false)
+      if (!isSilent) {
+        setLoadingMailboxes(false)
+      }
     }
   }, [])
 
@@ -1101,14 +1107,17 @@ export function TempEmailManager() {
     setMessagesError(null)
     setLoadingMessages(false)
     resetMessageDetail()
-    await fetchMailboxes()
+    await fetchMailboxes({ silent: !showToast })
   }, [fetchMailboxes, resetMessageDetail])
 
   const fetchMessages = useCallback(async (mailboxId: string, options?: { silent?: boolean }) => {
+    const isSilent = options?.silent === true
     const requestId = latestMessageRequestIdRef.current + 1
     latestMessageRequestIdRef.current = requestId
-    setLoadingMessages(true)
-    setMessagesError(null)
+    if (!isSilent) {
+      setLoadingMessages(true)
+      setMessagesError(null)
+    }
 
     try {
       const res = await fetch(`/api/emails/${mailboxId}/messages?page=1&limit=100`)
@@ -1117,16 +1126,16 @@ export function TempEmailManager() {
       if (!res.ok) {
         if (res.status === 404) {
           tempEmailReporter.warn("fetch_messages_mailbox_missing", { mailboxId })
-          await handleMailboxUnavailable(!options?.silent)
+          await handleMailboxUnavailable(!isSilent)
           return
         }
 
         const message = getResponseErrorMessage(body, "加载邮件失败")
         tempEmailReporter.warn("fetch_messages_failed_response", { mailboxId, status: res.status })
-        if (!options?.silent) {
+        if (!isSilent) {
           toast.error(message)
         }
-        if (latestMessageRequestIdRef.current === requestId) {
+        if (!isSilent && latestMessageRequestIdRef.current === requestId) {
           setMessages([])
           setMessagesError(message)
         }
@@ -1138,7 +1147,25 @@ export function TempEmailManager() {
       }
 
       const nextMessages = body.data || []
+      const nextMessageCount = typeof body.total === "number" ? body.total : nextMessages.length
       setMessages(nextMessages)
+      setMessagesError(null)
+      setMailboxes((prev) => {
+        let didUpdate = false
+        const unreadCount = nextMessages.filter((item) => !item.isRead).length
+        const next = prev.map((item) => {
+          if (item.id !== mailboxId) {
+            return item
+          }
+          didUpdate = true
+          return {
+            ...item,
+            messageCount: nextMessageCount,
+            unreadCount,
+          }
+        })
+        return didUpdate ? next : prev
+      })
       setSelectedMessage((current) => {
         if (!current) return current
         return nextMessages.find((item) => item.id === current.id) ?? null
@@ -1146,10 +1173,10 @@ export function TempEmailManager() {
     } catch (error) {
       const message = getUserFacingErrorMessage(error, "加载邮件失败")
       tempEmailReporter.report("fetch_messages_failed_exception", error, { mailboxId })
-      if (!options?.silent) {
+      if (!isSilent) {
         toast.error(message)
       }
-      if (latestMessageRequestIdRef.current === requestId) {
+      if (!isSilent && latestMessageRequestIdRef.current === requestId) {
         setMessages([])
         setMessagesError(message)
       }
@@ -1255,12 +1282,15 @@ export function TempEmailManager() {
       if (document.visibilityState !== "visible") {
         return
       }
+      if (loadingMailboxes || loadingMessages) {
+        return
+      }
 
-      void fetchMailboxes().then(() => fetchMessages(selectedMailboxId, { silent: true }))
+      void fetchMailboxes({ silent: true }).then(() => fetchMessages(selectedMailboxId, { silent: true }))
     }, 15000)
 
     return () => window.clearInterval(interval)
-  }, [fetchMailboxes, fetchMessages, selectedMailboxId])
+  }, [fetchMailboxes, fetchMessages, loadingMailboxes, loadingMessages, selectedMailboxId])
 
   function handleGenerateRandomPrefix() {
     setMailboxInput(getRandomPrefix())
@@ -1560,7 +1590,7 @@ export function TempEmailManager() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="min-h-9 px-2 text-destructive transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                            className="min-h-9 max-w-24 overflow-hidden px-2 text-destructive transition-[max-width,opacity,padding] duration-200 hover:text-destructive sm:pointer-events-none sm:max-w-0 sm:px-0 sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:max-w-24 sm:group-hover:px-2 sm:group-hover:opacity-100 sm:focus-visible:pointer-events-auto sm:focus-visible:max-w-24 sm:focus-visible:px-2 sm:focus-visible:opacity-100"
                             onClick={() => setPendingDeleteMailbox(mailbox)}
                             disabled={deletingMailboxId === mailbox.id}
                           >
