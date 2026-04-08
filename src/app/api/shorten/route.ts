@@ -23,13 +23,12 @@ export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: headersList })
 
   const settings = await getSiteSettings()
-  const allowAnonymous = settings?.allowAnonymous ?? true
 
   if (!isRequestOriginAllowed(headersList, settings?.siteUrl)) {
     return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
-  if (!allowAnonymous && !session) {
+  if (!session) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })
   }
 
@@ -43,21 +42,14 @@ export async function POST(req: NextRequest) {
   }
   const { url, customSlug, domain, expiresIn, maxClicks } = parsedBody.data
 
-  if (!session && customSlug) {
-    return NextResponse.json({ error: "自定义后缀仅对登录用户开放" }, { status: 403 })
-  }
-
   const result = await createShortLink({
     url,
     customSlug,
     domain,
     expiresIn,
     maxClicks,
-    actorUserId: session?.user?.id ?? null,
+    actorUserId: session.user.id,
     creatorIp: getClientIpFromHeaders(headersList),
-    allowAnonymous,
-    anonLimit: settings?.anonMaxLinksPerHour ?? 3,
-    anonMaxClicks: settings?.anonMaxClicks ?? 10,
     userLimit: settings?.userMaxLinksPerHour ?? 50,
     requestHeaders: headersList,
     logEventType: "link_created",

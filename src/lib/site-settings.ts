@@ -32,9 +32,7 @@ export async function getSiteSettingsFresh() {
 type SiteSettingsWriteInput = {
   siteName?: string
   siteUrl?: string
-  allowAnonymous?: boolean
-  anonMaxLinksPerHour?: number
-  anonMaxClicks?: number
+  telegramBotUsername?: string
   userMaxLinksPerHour?: number
 }
 
@@ -42,11 +40,9 @@ function buildSiteSettingsWrite(input: SiteSettingsWriteInput) {
   return {
     ...(input.siteName === undefined ? {} : { siteName: input.siteName }),
     ...(input.siteUrl === undefined ? {} : { siteUrl: input.siteUrl }),
-    ...(input.allowAnonymous === undefined ? {} : { allowAnonymous: input.allowAnonymous }),
-    ...(input.anonMaxLinksPerHour === undefined
+    ...(input.telegramBotUsername === undefined
       ? {}
-      : { anonMaxLinksPerHour: input.anonMaxLinksPerHour }),
-    ...(input.anonMaxClicks === undefined ? {} : { anonMaxClicks: input.anonMaxClicks }),
+      : { telegramBotUsername: input.telegramBotUsername }),
     ...(input.userMaxLinksPerHour === undefined
       ? {}
       : { userMaxLinksPerHour: input.userMaxLinksPerHour }),

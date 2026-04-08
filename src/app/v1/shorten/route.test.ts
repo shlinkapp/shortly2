@@ -14,8 +14,6 @@ type ApiAuthResult =
     }
 
 type SiteSettingsRecord = {
-  allowAnonymous?: boolean
-  anonMaxLinksPerHour?: number
   userMaxLinksPerHour?: number
 } | null
 
@@ -35,8 +33,6 @@ let apiAuthResult: ApiAuthResult = {
   },
 }
 let siteSettings: SiteSettingsRecord = {
-  allowAnonymous: true,
-  anonMaxLinksPerHour: 3,
   userMaxLinksPerHour: 50,
 }
 let allowedShortDomain: AllowedShortDomain = { host: "sho.rt" }
@@ -185,8 +181,6 @@ beforeEach(() => {
     },
   }
   siteSettings = {
-    allowAnonymous: true,
-    anonMaxLinksPerHour: 3,
     userMaxLinksPerHour: 50,
   }
   allowedShortDomain = { host: "sho.rt" }
@@ -254,10 +248,7 @@ describe("api shorten route", () => {
     ])
     expect(rateLimitInputs).toEqual([
       {
-        ip: "203.0.113.10",
         userId: "user_123",
-        allowAnonymous: true,
-        anonLimit: 3,
         userLimit: 50,
       },
     ])

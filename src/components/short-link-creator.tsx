@@ -166,10 +166,11 @@ export function ShortLinkCreator({
   const customSlugTooShort = normalizedCustomSlug.length > 0 && normalizedCustomSlug.length < selectedMinSlugLength
 
   const canSubmit = useMemo(() => {
+    if (!user) return false
     if (!url.trim()) return false
-    if (user && !domainsLoading && shortDomains.length < 1) return false
-    if (user && shortDomains.length > 0 && !selectedDomain) return false
-    if (user && customSlugTooShort) return false
+    if (!domainsLoading && shortDomains.length < 1) return false
+    if (shortDomains.length > 0 && !selectedDomain) return false
+    if (customSlugTooShort) return false
     return true
   }, [customSlugTooShort, domainsLoading, selectedDomain, shortDomains.length, url, user])
 
@@ -187,6 +188,11 @@ export function ShortLinkCreator({
   }
 
   function handleShorten() {
+    if (!user) {
+      toast.error("请先登录后再创建短链")
+      return
+    }
+
     if (customSlugTooShort) {
       toast.error(`自定义后缀至少需要 ${selectedMinSlugLength} 个字符`)
       return
@@ -200,7 +206,7 @@ export function ShortLinkCreator({
           body: JSON.stringify({
             url: url.trim(),
             customSlug: customSlug.trim() || undefined,
-            domain: user ? selectedDomain || undefined : undefined,
+            domain: selectedDomain || undefined,
             maxClicks: maxClicks ? parseInt(maxClicks, 10) : undefined,
             expiresIn: expiresIn === "none" ? undefined : expiresIn,
           }),
@@ -452,9 +458,6 @@ export function ShortLinkCreator({
               </Button>
             </div>
           </div>
-          {!user && isHomepageMode && result.maxClicks && (
-            <p className="text-xs font-medium text-destructive">匿名链接会在 {result.maxClicks} 次访问后失效。</p>
-          )}
         </div>
       )}
 

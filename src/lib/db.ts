@@ -119,9 +119,7 @@ async function _initDb() {
       id TEXT PRIMARY KEY DEFAULT 'default',
       site_name TEXT NOT NULL DEFAULT 'Shortly',
       site_url TEXT NOT NULL DEFAULT '',
-      allow_anonymous INTEGER NOT NULL DEFAULT 1,
-      anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3,
-      anon_max_clicks INTEGER NOT NULL DEFAULT 10,
+      telegram_bot_username TEXT NOT NULL DEFAULT '',
       user_max_links_per_hour INTEGER NOT NULL DEFAULT 50
     );
 
@@ -295,8 +293,7 @@ async function ensureLegacyShortLinkColumns() {
 
 async function ensureLegacySiteSettingColumns() {
   await Promise.all([
-    ensureColumn("site_setting", "anon_max_links_per_hour", "anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3"),
-    ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10"),
+    ensureColumn("site_setting", "telegram_bot_username", "telegram_bot_username TEXT NOT NULL DEFAULT ''"),
     ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
   ])
 }

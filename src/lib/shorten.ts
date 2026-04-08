@@ -25,11 +25,8 @@ type CreateShortLinkInput = {
   domain?: string
   expiresIn?: ShortLinkExpiresIn
   maxClicks?: number
-  actorUserId: string | null
+  actorUserId: string
   creatorIp: string | null
-  allowAnonymous: boolean
-  anonLimit: number
-  anonMaxClicks: number
   userLimit: number
   requestHeaders: Headers
   logEventType: LinkLogEventType
@@ -92,10 +89,7 @@ export async function createShortLink(
   }
 
   const rateLimitResult = await checkRateLimit({
-    ip: input.creatorIp,
-    userId: input.actorUserId ?? undefined,
-    allowAnonymous: input.allowAnonymous,
-    anonLimit: input.anonLimit,
+    userId: input.actorUserId,
     userLimit: input.userLimit,
   })
 
@@ -108,12 +102,10 @@ export async function createShortLink(
     return failure
   }
 
-  const finalMaxClicks = input.actorUserId
-    ? typeof input.maxClicks === "number" && input.maxClicks > 0
-      ? Math.floor(input.maxClicks)
-      : null
-    : input.anonMaxClicks
-  const finalExpiresAt = input.actorUserId && input.expiresIn
+  const finalMaxClicks = typeof input.maxClicks === "number" && input.maxClicks > 0
+    ? Math.floor(input.maxClicks)
+    : null
+  const finalExpiresAt = input.expiresIn
     ? resolveShortLinkExpiresAt(input.expiresIn)
     : null
 

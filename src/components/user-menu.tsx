@@ -11,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LayoutDashboard, Shield, LogOut } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { ChevronsUpDown, LayoutDashboard, Shield, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
@@ -22,9 +23,12 @@ interface UserMenuProps {
     image?: string | null
     role?: string
   }
+  layout?: "icon" | "panel"
+  align?: "start" | "end"
+  className?: string
 }
 
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu({ user, layout = "icon", align = "end", className }: UserMenuProps) {
   const router = useRouter()
   const initials = user.name
     .split(" ")
@@ -43,14 +47,35 @@ export function UserMenu({ user }: UserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user.image ?? undefined} alt={user.name} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-        </Button>
+        {layout === "panel" ? (
+          <Button
+            variant="ghost"
+            className={cn(
+              "h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left",
+              "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
+              className
+            )}
+          >
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={user.image ?? undefined} alt={user.name} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            </div>
+            <ChevronsUpDown className="h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+          </Button>
+        ) : (
+          <Button variant="ghost" className={cn("relative h-9 w-9 rounded-full p-0", className)}>
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={user.image ?? undefined} alt={user.name} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+          </Button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align={align} className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col">
             <span className="font-medium">{user.name}</span>

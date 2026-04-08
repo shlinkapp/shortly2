@@ -33,7 +33,11 @@ describe("db bootstrap regression checks", () => {
       },
       {
         name: "site_setting",
-        columns: ["anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"],
+        columns: [
+          "site_name TEXT NOT NULL DEFAULT 'Shortly'",
+          "telegram_bot_username TEXT NOT NULL DEFAULT ''",
+          "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50",
+        ],
       },
       {
         name: "site_domain",
@@ -146,7 +150,8 @@ describe("db bootstrap regression checks", () => {
     expect(dbSource).toContain("async function ensureLegacySiteSettingColumns()")
     expect(dbSource).toContain("async function ensureLegacySiteDomainColumns()")
     expect(dbSource).toContain('ensureColumn("short_link", "expires_at", "expires_at INTEGER")')
-    expect(dbSource).toContain('ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10")')
+    expect(dbSource).toContain('ensureColumn("site_setting", "telegram_bot_username", "telegram_bot_username TEXT NOT NULL DEFAULT \'\'")')
+    expect(dbSource).toContain('ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50")')
     expect(dbSource).toContain('ensureColumn("site_domain", "short_link_min_slug_length", "short_link_min_slug_length INTEGER NOT NULL DEFAULT 1")')
     expect(dbSource).toContain('ensureColumn("site_domain", "temp_email_min_local_part_length", "temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1")')
     expect(dbSource).not.toContain('ensureColumn("api_key"')
@@ -234,8 +239,7 @@ describe("db bootstrap regression checks", () => {
 
     const expectedDefaults = [
       "site_name TEXT NOT NULL DEFAULT 'Shortly'",
-      "allow_anonymous INTEGER NOT NULL DEFAULT 1",
-      "anon_max_clicks INTEGER NOT NULL DEFAULT 10",
+      "telegram_bot_username TEXT NOT NULL DEFAULT ''",
       "supports_short_links INTEGER NOT NULL DEFAULT 0",
       "supports_temp_email INTEGER NOT NULL DEFAULT 0",
       "is_active INTEGER NOT NULL DEFAULT 1",
@@ -522,8 +526,7 @@ describe("db bootstrap regression checks", () => {
       'ensureColumn("short_link", "max_clicks", "max_clicks INTEGER")',
       'ensureColumn("short_link", "creator_ip", "creator_ip TEXT")',
       'ensureColumn("short_link", "domain", "domain TEXT NOT NULL DEFAULT \'\'")',
-      'ensureColumn("site_setting", "anon_max_links_per_hour", "anon_max_links_per_hour INTEGER NOT NULL DEFAULT 3")',
-      'ensureColumn("site_setting", "anon_max_clicks", "anon_max_clicks INTEGER NOT NULL DEFAULT 10")',
+      'ensureColumn("site_setting", "telegram_bot_username", "telegram_bot_username TEXT NOT NULL DEFAULT \'\'")',
       'ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50")',
       'INSERT OR IGNORE INTO site_setting (id) VALUES (\'default\')',
       'await ensureLegacyShortLinkDomainSlugMigration()',

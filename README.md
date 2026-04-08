@@ -68,11 +68,12 @@ bun run dev
 
 ## 💡 使用指南
 
-1. **匿名使用**：任何人均可直接访问首页，将长链接粘贴至输入框进行缩短。由于风控机制，匿名创建的短链将会受限（不可设置自定义后缀，并且默认为较少的有效点击次数）。
+1. **首页与登录**：
+    - 首页为简洁落地页，展示短链接与临时邮箱能力概览。
+    - 点击右上角的 "登录 / 注册" 进入完整功能。
 2. **账号注册与管理**：
-    - 点击右上角的 "登录 / 注册" 体验完整的后台。
     - 如需自动授予管理员，请在环境变量中配置 `BOOTSTRAP_ADMIN_EMAILS`（支持逗号分隔多个邮箱）；未配置时不会自动提权。
-    - 登录后可以自由地设置短链域名、链接有效时间、访问阈值和专有短链后缀。
+    - 登录后可创建短链并设置域名、有效期、访问阈值和自定义后缀。
 3. **用户后台能力**：
     - **我的短链**：支持在后台直接创建短链，并按域名查看记录、复制短链、查看点击日志、删除短链。
     - **临时邮箱**：支持按管理员启用的邮箱域名创建临时邮箱，使用随机前缀快速生成地址，并在后台统一管理收件箱。
@@ -88,6 +89,7 @@ bun run dev
     - Worker 的部署、secret 配置和 R2 绑定说明见 `.cf-email-forwarding-worker/README.md`。
 6. **Telegram Bot 集成**：
     - `.cf-tgbot-worker` 是独立部署的 Cloudflare Worker，负责接收 Telegram webhook、处理 `/setkey` `/short` `/email` `/links` `/emails` `/me` 等命令，并调用 Shortly 主程序的 `/v1` API。
+    - 管理员可在后台「站点设置」中配置 TG Bot 用户名，用户在后台 API 页面会看到对应机器人的 `/setkey <api_key>` 绑定提示。
     - 用户先在 Telegram 中通过 `/setkey <api_key>` 绑定 Shortly API Key，主程序再通过 `POST /v1/integrations/telegram/bind` 建立 Telegram chat 与当前用户的绑定关系。
     - 主程序配置 `TELEGRAM_BOT_TOKEN` 后，会在临时邮箱成功收件时直接调用 Telegram Bot API，把“新邮件提醒”推送到该用户已绑定的 chat。
     - Telegram 推送失败不会影响邮件正常落库；未绑定 Telegram 的用户也不会影响正常收件。

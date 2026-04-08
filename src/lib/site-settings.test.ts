@@ -53,7 +53,7 @@ mock.module("@/lib/db", () => ({
                 get: async () => ({
                   id: "default",
                   siteName: "Shortly Pro",
-                  allowAnonymous: false,
+                  telegramBotUsername: "shortly_bot",
                   userMaxLinksPerHour: 25,
                 }),
               }
@@ -88,7 +88,8 @@ describe("upsertSiteSettings", () => {
   it("upserts only provided settings fields onto the default row", async () => {
     await upsertSiteSettings({
       siteName: "Shortly Pro",
-      allowAnonymous: false,
+      siteUrl: "https://short.ly",
+      telegramBotUsername: "shortly_bot",
       userMaxLinksPerHour: 25,
     })
 
@@ -99,7 +100,8 @@ describe("upsertSiteSettings", () => {
         values: {
           id: "default",
           siteName: "Shortly Pro",
-          allowAnonymous: false,
+          siteUrl: "https://short.ly",
+          telegramBotUsername: "shortly_bot",
           userMaxLinksPerHour: 25,
         },
       },
@@ -107,7 +109,8 @@ describe("upsertSiteSettings", () => {
         kind: "insert:onConflictDoUpdate",
         set: {
           siteName: "Shortly Pro",
-          allowAnonymous: false,
+          siteUrl: "https://short.ly",
+          telegramBotUsername: "shortly_bot",
           userMaxLinksPerHour: 25,
         },
       },
@@ -119,7 +122,7 @@ describe("writeSiteSettings", () => {
   it("revalidates the site settings cache and returns fresh settings", async () => {
     const result = await writeSiteSettings({
       siteName: "Shortly Pro",
-      allowAnonymous: false,
+      telegramBotUsername: "shortly_bot",
       userMaxLinksPerHour: 25,
     })
 
@@ -130,7 +133,7 @@ describe("writeSiteSettings", () => {
         values: {
           id: "default",
           siteName: "Shortly Pro",
-          allowAnonymous: false,
+          telegramBotUsername: "shortly_bot",
           userMaxLinksPerHour: 25,
         },
       },
@@ -138,7 +141,7 @@ describe("writeSiteSettings", () => {
         kind: "insert:onConflictDoUpdate",
         set: {
           siteName: "Shortly Pro",
-          allowAnonymous: false,
+          telegramBotUsername: "shortly_bot",
           userMaxLinksPerHour: 25,
         },
       },
@@ -149,7 +152,7 @@ describe("writeSiteSettings", () => {
     expect(result).toEqual({
       id: "default",
       siteName: "Shortly Pro",
-      allowAnonymous: false,
+      telegramBotUsername: "shortly_bot",
       userMaxLinksPerHour: 25,
     })
   })
@@ -183,7 +186,7 @@ describe("writeSiteSettingsAndReadFresh", () => {
     expect(result).toEqual({
       id: "default",
       siteName: "Shortly Pro",
-      allowAnonymous: false,
+      telegramBotUsername: "shortly_bot",
       userMaxLinksPerHour: 25,
     })
   })

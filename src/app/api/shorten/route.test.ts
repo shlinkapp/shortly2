@@ -11,9 +11,6 @@ type SessionRecord = {
 } | null
 
 type SiteSettingsRecord = {
-  allowAnonymous?: boolean
-  anonMaxLinksPerHour?: number
-  anonMaxClicks?: number
   userMaxLinksPerHour?: number
   siteUrl?: string
 } | null
@@ -29,9 +26,6 @@ let POST: RoutePost
 let initDbCalls = 0
 let session: SessionRecord = null
 let siteSettings: SiteSettingsRecord = {
-  allowAnonymous: true,
-  anonMaxLinksPerHour: 3,
-  anonMaxClicks: 10,
   userMaxLinksPerHour: 50,
   siteUrl: "https://app.shortly.test",
 }
@@ -188,9 +182,6 @@ beforeEach(() => {
   initDbCalls = 0
   session = null
   siteSettings = {
-    allowAnonymous: true,
-    anonMaxLinksPerHour: 3,
-    anonMaxClicks: 10,
     userMaxLinksPerHour: 50,
     siteUrl: "https://app.shortly.test",
   }
@@ -213,64 +204,25 @@ beforeEach(() => {
 })
 
 describe("web shorten route", () => {
-  it("creates an anonymous short link with fallback limits and writes a creation log", async () => {
+  it("requires authentication before creating links", async () => {
     const response = await POST(
       createRequest({
         url: "https://example.com/article",
       })
     )
-    const body = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(body).toEqual({
-      shortUrl: "https://sho.rt/generated-slug",
-      slug: "generated-slug",
-      domain: "sho.rt",
-      maxClicks: 10,
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({
+      error: "Authentication required",
     })
     expect(initDbCalls).toBe(1)
     expect(originInputs).toEqual([
       { origin: "https://app.shortly.test", siteUrl: "https://app.shortly.test" },
     ])
-    expect(allowedShortDomainInputs).toEqual([undefined])
-    expect(rateLimitInputs).toEqual([
-      {
-        ip: "203.0.113.10",
-        userId: undefined,
-        allowAnonymous: true,
-        anonLimit: 3,
-        userLimit: 50,
-      },
-    ])
-    expect(selfShortenInputs).toEqual([
-      {
-        url: "https://example.com/article",
-        host: "app.shortly.test",
-        siteUrl: "https://sho.rt",
-      },
-    ])
-    expect(insertedShortLinks).toHaveLength(1)
-    expect(insertedShortLinks[0]).toMatchObject({
-      userId: null,
-      originalUrl: "https://example.com/article",
-      slug: "generated-slug",
-      domain: "sho.rt",
-      clicks: 0,
-      creatorIp: "203.0.113.10",
-      maxClicks: 10,
-      expiresAt: null,
-    })
-    expect(createLinkLogInputs).toHaveLength(1)
-    expect(createLinkLogInputs[0]).toMatchObject({
-      linkId: insertedShortLinks[0]?.id,
-      linkSlug: "generated-slug",
-      ownerUserId: null,
-      eventType: "link_created",
-      referrer: "https://app.shortly.test/dashboard",
-      userAgent: "TestAgent/1.0",
-      ipAddress: "203.0.113.10",
-      statusCode: 201,
-    })
+    expect(allowedShortDomainInputs).toHaveLength(0)
+    expect(rateLimitInputs).toHaveLength(0)
+    expect(insertedShortLinks).toHaveLength(0)
+    expect(createLinkLogInputs).toHaveLength(0)
   })
 
   it("rejects forbidden origins before touching creation flow", async () => {
@@ -291,6 +243,12 @@ describe("web shorten route", () => {
   })
 
   it("rejects invalid json bodies", async () => {
+    session = {
+      user: {
+        id: "user_123",
+      },
+    }
+
     const response = await POST(createRequest("{"))
 
     expect(response.status).toBe(400)
@@ -300,22 +258,72 @@ describe("web shorten route", () => {
     expect(insertedShortLinks).toHaveLength(0)
   })
 
-  it("blocks anonymous custom slugs", async () => {
+  it("creates a signed-in short link and writes a creation log", async () => {
+    session = {
+      user: {
+        id: "user_123",
+      },
+    }
+
     const response = await POST(
       createRequest({
         url: "https://example.com/article",
-        customSlug: "my-slug",
       })
     )
+    const body = await response.json()
 
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({
-      error: "自定义后缀仅对登录用户开放",
+    expect(response.status).toBe(200)
+    expect(body).toEqual({
+      shortUrl: "https://sho.rt/generated-slug",
+      slug: "generated-slug",
+      domain: "sho.rt",
+      maxClicks: null,
     })
-    expect(insertedShortLinks).toHaveLength(0)
+    expect(allowedShortDomainInputs).toEqual([undefined])
+    expect(rateLimitInputs).toEqual([
+      {
+        userId: "user_123",
+        userLimit: 50,
+      },
+    ])
+    expect(selfShortenInputs).toEqual([
+      {
+        url: "https://example.com/article",
+        host: "app.shortly.test",
+        siteUrl: "https://sho.rt",
+      },
+    ])
+    expect(insertedShortLinks).toHaveLength(1)
+    expect(insertedShortLinks[0]).toMatchObject({
+      userId: "user_123",
+      originalUrl: "https://example.com/article",
+      slug: "generated-slug",
+      domain: "sho.rt",
+      clicks: 0,
+      creatorIp: "203.0.113.10",
+      maxClicks: null,
+      expiresAt: null,
+    })
+    expect(createLinkLogInputs).toHaveLength(1)
+    expect(createLinkLogInputs[0]).toMatchObject({
+      linkId: insertedShortLinks[0]?.id,
+      linkSlug: "generated-slug",
+      ownerUserId: "user_123",
+      eventType: "link_created",
+      referrer: "https://app.shortly.test/dashboard",
+      userAgent: "TestAgent/1.0",
+      ipAddress: "203.0.113.10",
+      statusCode: 201,
+    })
   })
 
   it("returns rate-limit errors from the shared limiter", async () => {
+    session = {
+      user: {
+        id: "user_123",
+      },
+    }
+
     rateLimitResponse = {
       success: false,
       error: "Rate limit exceeded. Try again later.",
@@ -332,6 +340,12 @@ describe("web shorten route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Rate limit exceeded. Try again later.",
     })
+    expect(rateLimitInputs).toEqual([
+      {
+        userId: "user_123",
+        userLimit: 50,
+      },
+    ])
     expect(insertedShortLinks).toHaveLength(0)
     expect(createLinkLogInputs).toHaveLength(0)
   })
@@ -364,8 +378,6 @@ describe("web shorten route", () => {
     expect(expiresInInputs).toEqual(["1d"])
     expect(rateLimitInputs[0]).toMatchObject({
       userId: "user_123",
-      allowAnonymous: true,
-      anonLimit: 3,
       userLimit: 50,
     })
     expect(insertedShortLinks[0]).toMatchObject({

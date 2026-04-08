@@ -22,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -32,8 +31,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 import { toast } from "sonner"
-import { Copy, Trash2, BarChart2, ExternalLink, ArrowLeft } from "lucide-react"
+import { ArrowLeft, BarChart2, Copy, ExternalLink, KeyRound, Link2, Mail, Shield, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { PasskeyManager } from "@/components/passkey-manager"
 import { ApiManagementPanel } from "@/components/api-management"
@@ -266,30 +282,110 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
     await fetchLinks(1)
   }
 
+  const activeTabLabel =
+    activeTab === "links"
+      ? "短链管理"
+      : activeTab === "temp-email"
+        ? "临时邮箱"
+        : activeTab === "api"
+          ? "API 管理"
+          : "安全"
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/" aria-label="返回首页" className="text-muted-foreground transition-colors hover:text-foreground">
+    <>
+      <SidebarProvider defaultOpen>
+      <Sidebar collapsible="icon" variant="inset">
+        <SidebarHeader className="gap-1 p-3">
+          <Button
+            variant="ghost"
+            asChild
+            className="h-10 justify-start gap-2 px-2 text-sidebar-foreground hover:text-sidebar-foreground"
+          >
+            <Link href="/" aria-label="返回首页">
               <ArrowLeft className="h-4 w-4" />
+              <span className="font-medium">返回首页</span>
             </Link>
-            <h1 className="font-semibold">工作台</h1>
+          </Button>
+        </SidebarHeader>
+        <SidebarSeparator />
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>导航</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "links"}
+                    onClick={() => setActiveTab("links")}
+                    tooltip="短链"
+                  >
+                    <Link2 className="h-4 w-4" />
+                    <span>短链</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "temp-email"}
+                    onClick={() => setActiveTab("temp-email")}
+                    tooltip="临时邮箱"
+                  >
+                    <Mail className="h-4 w-4" />
+                    <span>临时邮箱</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "api"}
+                    onClick={() => setActiveTab("api")}
+                    tooltip="API 管理"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    <span>API</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "security"}
+                    onClick={() => setActiveTab("security")}
+                    tooltip="安全"
+                  >
+                    <Shield className="h-4 w-4" />
+                    <span>安全</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarSeparator />
+        <SidebarFooter className="p-3">
+          <div className="rounded-lg border border-sidebar-border/60 bg-sidebar-accent/40 p-1.5">
+            <UserMenu
+              user={user}
+              layout="panel"
+              align="start"
+              className="text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
+            />
           </div>
-          <UserMenu user={user} />
-        </div>
-      </header>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+          <div className="flex h-14 items-center px-4 sm:px-6">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <h1 className="text-sm font-medium">{activeTabLabel}</h1>
+            </div>
+          </div>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1 lg:grid-cols-4">
-            <TabsTrigger value="links" className="w-full">短链</TabsTrigger>
-            <TabsTrigger value="temp-email" className="w-full">临时邮箱</TabsTrigger>
-            <TabsTrigger value="api" className="w-full">API</TabsTrigger>
-            <TabsTrigger value="security" className="w-full">安全</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="links" className="mt-0 space-y-6">
+        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {activeTab === "links" && (
             <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
               <ShortLinkCreator
                 user={user}
@@ -514,21 +610,14 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
+          )}
 
-          <TabsContent value="temp-email" className="mt-0">
-            <TempEmailManager />
-          </TabsContent>
-
-          <TabsContent value="security" className="mt-0">
-            <PasskeyManager />
-          </TabsContent>
-
-          <TabsContent value="api" className="mt-0">
-            <ApiManagementPanel />
-          </TabsContent>
-        </Tabs>
-      </main>
+          {activeTab === "temp-email" && <TempEmailManager />}
+          {activeTab === "security" && <PasskeyManager />}
+          {activeTab === "api" && <ApiManagementPanel />}
+        </main>
+      </SidebarInset>
+      </SidebarProvider>
 
       <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl">
@@ -651,6 +740,6 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

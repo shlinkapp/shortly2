@@ -55,6 +55,7 @@ interface DomainsResponse {
     host: string
     isDefault: boolean
   }>
+  telegramBotUsername?: string
 }
 
 function maskPrefix(prefix: string): string {
@@ -73,6 +74,7 @@ export function ApiManagementPanel() {
   const [sharexApiKey, setSharexApiKey] = useState("")
   const [emailDomains, setEmailDomains] = useState<string[]>([])
   const [shortDomains, setShortDomains] = useState<string[]>([])
+  const [telegramBotUsername, setTelegramBotUsername] = useState("")
 
   const fetchKeys = useCallback(async () => {
     setLoading(true)
@@ -103,6 +105,7 @@ export function ApiManagementPanel() {
       const body = await res.json() as DomainsResponse
       setEmailDomains((body.emailDomains || []).map((item) => item.host))
       setShortDomains((body.shortDomains || []).map((item) => item.host))
+      setTelegramBotUsername((body.telegramBotUsername || "").trim())
     } catch {
     }
   }, [])
@@ -143,6 +146,12 @@ export function ApiManagementPanel() {
   const shortenEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/shorten`
   const domainsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/domains`
   const emailsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/emails`
+  const emailMessageEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/emails/messages`
+  const normalizedTelegramBotUsername = telegramBotUsername.replace(/^@+/, "")
+  const telegramBotHandle = normalizedTelegramBotUsername ? `@${normalizedTelegramBotUsername}` : ""
+  const telegramBindCommand = `/setkey ${latestPlainKey || "YOUR_API_KEY"}`
+  const sampleEmailDomain = emailDomains[0] || "mail.example.com"
+  const sampleEmailAddress = `demo@${sampleEmailDomain}`
   const gettingStartedCommand = `curl -X POST '${shortenEndpoint}' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
@@ -158,6 +167,16 @@ export function ApiManagementPanel() {
     "maxClicks": 100,
     "expiresIn": "1m"
   }'`
+  const createMailboxCommand = `curl -X POST '${emailsEndpoint}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer YOUR_API_KEY' \\
+  -d '{
+    "emailAddress": "${sampleEmailAddress}"
+  }'`
+  const listMailboxMessagesCommand = `curl '${emailsEndpoint}/MAILBOX_ID/messages?page=1&limit=20' \\
+  -H 'Authorization: Bearer YOUR_API_KEY'`
+  const markMessageReadCommand = `curl -X POST '${emailMessageEndpoint}/MESSAGE_ID/read' \\
+  -H 'Authorization: Bearer YOUR_API_KEY'`
 
   async function handleCreateKey() {
     setCreating(true)
@@ -276,6 +295,25 @@ export function ApiManagementPanel() {
                 </Button>
               </div>
             )}
+            {telegramBotHandle && (
+              <div className="space-y-3 rounded-lg border border-dashed px-4 py-3">
+                <p className="text-sm font-medium">Telegram 机器人绑定</p>
+                <p className="text-xs text-muted-foreground">
+                  打开 {telegramBotHandle}，发送以下命令绑定当前 API Key：
+                </p>
+                <code className="block overflow-x-auto rounded bg-muted px-2.5 py-2 text-xs">
+                  {telegramBindCommand}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopy(telegramBindCommand, "TG 绑定命令已复制")}
+                >
+                  <Copy className="h-4 w-4" />
+                  复制绑定命令
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -344,13 +382,28 @@ export function ApiManagementPanel() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-1">
-              <p className="text-sm font-medium">创建短链</p>
+              <p className="text-sm font-medium">短链：快速创建</p>
               <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{gettingStartedCommand}</pre>
             </div>
 
             <div className="space-y-1">
-              <p className="text-sm font-medium">进阶参数</p>
+              <p className="text-sm font-medium">短链：进阶参数</p>
               <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{advancedShortenCommand}</pre>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium">临时邮箱：创建邮箱地址</p>
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{createMailboxCommand}</pre>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium">临时邮箱：查看某个邮箱的邮件列表</p>
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{listMailboxMessagesCommand}</pre>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium">临时邮箱：标记邮件为已读</p>
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{markMessageReadCommand}</pre>
             </div>
 
             <div className="space-y-2 text-xs text-muted-foreground">
@@ -358,6 +411,9 @@ export function ApiManagementPanel() {
               <p>短链域名：{shortDomains.length > 0 ? shortDomains.join(", ") : "加载后显示"}</p>
               <p>域名接口：{domainsEndpoint}</p>
               <p>邮箱接口：{emailsEndpoint}</p>
+              <p>邮箱消息接口：{emailMessageEndpoint}/MESSAGE_ID</p>
+              <p>标记已读接口：{emailMessageEndpoint}/MESSAGE_ID/read</p>
+              {telegramBotHandle && <p>Telegram 机器人：{telegramBotHandle}</p>}
             </div>
           </CardContent>
         </Card>

@@ -32,8 +32,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 import { toast } from "sonner"
-import { Trash2, ExternalLink, ArrowLeft, Save, Shield, BarChart2, Pencil, Plus, Mail, Inbox, Archive } from "lucide-react"
+import { Archive, ArrowLeft, BarChart2, ExternalLink, Inbox, Link2, Mail, Pencil, Plus, Save, Settings2, Shield, Trash2, Users } from "lucide-react"
 import Link from "next/link"
 import { useMediaQuery } from "@/lib/use-media-query"
 
@@ -80,9 +97,7 @@ interface AdminUser {
 interface SiteSettings {
   siteName: string
   siteUrl: string
-  allowAnonymous: boolean
-  anonMaxLinksPerHour: number
-  anonMaxClicks: number
+  telegramBotUsername: string
   userMaxLinksPerHour: number
 }
 
@@ -371,9 +386,7 @@ export function AdminClient({ user }: AdminClientProps) {
   const [settings, setSettings] = useState<SiteSettings>({
     siteName: "Shortly",
     siteUrl: "http://localhost:3000",
-    allowAnonymous: true,
-    anonMaxLinksPerHour: 3,
-    anonMaxClicks: 10,
+    telegramBotUsername: "",
     userMaxLinksPerHour: 50,
   })
   const [loading, setLoading] = useState(true)
@@ -446,9 +459,7 @@ export function AdminClient({ user }: AdminClientProps) {
       setSettings({
         siteName: s.siteName,
         siteUrl: s.siteUrl,
-        allowAnonymous: s.allowAnonymous,
-        anonMaxLinksPerHour: s.anonMaxLinksPerHour,
-        anonMaxClicks: s.anonMaxClicks,
+        telegramBotUsername: s.telegramBotUsername || "",
         userMaxLinksPerHour: s.userMaxLinksPerHour,
       })
 
@@ -854,33 +865,113 @@ export function AdminClient({ user }: AdminClientProps) {
     setEmailDetailTab(getDefaultDetailTab())
   }
 
+  const activeTabLabel =
+    activeTab === "links"
+      ? "链接管理"
+      : activeTab === "users"
+        ? "用户管理"
+        : activeTab === "emails"
+          ? "邮箱排查"
+          : "站点设置"
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="mx-auto max-w-5xl flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/" aria-label="返回首页" className="text-muted-foreground hover:text-foreground transition-colors">
+    <SidebarProvider defaultOpen>
+      <Sidebar collapsible="icon" variant="inset">
+        <SidebarHeader className="gap-1 p-3">
+          <Button
+            variant="ghost"
+            asChild
+            className="h-10 justify-start gap-2 px-2 text-sidebar-foreground hover:text-sidebar-foreground"
+          >
+            <Link href="/" aria-label="返回首页">
               <ArrowLeft className="h-4 w-4" />
+              <span className="font-medium">返回首页</span>
             </Link>
+          </Button>
+        </SidebarHeader>
+        <SidebarSeparator />
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>管理导航</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "links"}
+                    onClick={() => handleChangeTab("links")}
+                    tooltip="链接管理"
+                  >
+                    <Link2 className="h-4 w-4" />
+                    <span>链接</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "users"}
+                    onClick={() => handleChangeTab("users")}
+                    tooltip="用户管理"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>用户</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "emails"}
+                    onClick={() => handleChangeTab("emails")}
+                    tooltip="邮箱排查"
+                  >
+                    <Mail className="h-4 w-4" />
+                    <span>邮箱</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={activeTab === "settings"}
+                    onClick={() => handleChangeTab("settings")}
+                    tooltip="站点设置"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span>设置</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarSeparator />
+        <SidebarFooter className="p-3">
+          <div className="rounded-lg border border-sidebar-border/60 bg-sidebar-accent/40 p-1.5">
+            <UserMenu
+              user={user}
+              layout="panel"
+              align="start"
+              className="text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
+            />
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+          <div className="flex h-14 items-center px-4 sm:px-6">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              <h1 className="font-semibold">控制台</h1>
+              <SidebarTrigger className="-ml-1" />
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                <h1 className="text-sm font-medium">{activeTabLabel}</h1>
+              </div>
             </div>
           </div>
-          <UserMenu user={user} />
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
-        <Tabs value={activeTab} onValueChange={handleChangeTab} className="space-y-6">
-          <TabsList className="grid h-auto grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1 lg:grid-cols-4">
-            <TabsTrigger value="links" className="w-full">链接 {linksTotal > 0 ? `(${linksTotal})` : ""}</TabsTrigger>
-            <TabsTrigger value="users" className="w-full">用户 {users.length > 0 ? `(${users.length})` : ""}</TabsTrigger>
-            <TabsTrigger value="emails" className="w-full">邮箱</TabsTrigger>
-            <TabsTrigger value="settings" className="w-full">设置</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="links" className="mt-0">
+        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          <Tabs value={activeTab} onValueChange={handleChangeTab} className="space-y-6">
+            <TabsContent value="links" className="mt-0">
             <Card>
               <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-base">链接</CardTitle>
@@ -1487,44 +1578,18 @@ export function AdminClient({ user }: AdminClientProps) {
                       onChange={(e) => setSettings((s) => ({ ...s, siteUrl: e.target.value }))}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="allowAnonymous"
-                      checked={settings.allowAnonymous}
-                      onChange={(e) => setSettings((s) => ({ ...s, allowAnonymous: e.target.checked }))}
-                      className="h-4 w-4 rounded border"
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="telegramBotUsername">TG Bot 用户名</Label>
+                    <Input
+                      id="telegramBotUsername"
+                      placeholder="例如：shortly_bot（可填写 @shortly_bot）"
+                      value={settings.telegramBotUsername}
+                      onChange={(e) => setSettings((s) => ({ ...s, telegramBotUsername: e.target.value }))}
                     />
-                    <Label htmlFor="allowAnonymous">允许匿名创建短链</Label>
+                    <p className="text-xs text-muted-foreground">
+                      设置后，用户后台 API 页面会显示机器人绑定提示：`/setkey &lt;api_key&gt;`。
+                    </p>
                   </div>
-                  {settings.allowAnonymous && (
-                    <>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="anonMaxLinksPerHour">匿名每小时创建数</Label>
-                        <Input
-                          id="anonMaxLinksPerHour"
-                          type="number"
-                          min="1"
-                          value={settings.anonMaxLinksPerHour}
-                          onChange={(e) =>
-                            setSettings((s) => ({ ...s, anonMaxLinksPerHour: parseInt(e.target.value) || 0 }))
-                          }
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="anonMaxClicks">匿名最大点击数</Label>
-                        <Input
-                          id="anonMaxClicks"
-                          type="number"
-                          min="1"
-                          value={settings.anonMaxClicks}
-                          onChange={(e) =>
-                            setSettings((s) => ({ ...s, anonMaxClicks: parseInt(e.target.value) || 0 }))
-                          }
-                        />
-                      </div>
-                    </>
-                  )}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="userMaxLinksPerHour">用户每小时创建数</Label>
                     <Input
@@ -2001,6 +2066,7 @@ export function AdminClient({ user }: AdminClientProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

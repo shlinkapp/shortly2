@@ -123,9 +123,7 @@ export const siteSetting = sqliteTable("site_setting", {
   id: text("id").primaryKey().default("default"),
   siteName: text("site_name").notNull().default("Shortly"),
   siteUrl: text("site_url").notNull().default(""),
-  allowAnonymous: integer("allow_anonymous", { mode: "boolean" }).notNull().default(true),
-  anonMaxLinksPerHour: integer("anon_max_links_per_hour").notNull().default(3),
-  anonMaxClicks: integer("anon_max_clicks").notNull().default(10),
+  telegramBotUsername: text("telegram_bot_username").notNull().default(""),
   userMaxLinksPerHour: integer("user_max_links_per_hour").notNull().default(50),
 })
 
@@ -262,4 +260,3 @@ export const apiKey = sqliteTable("api_key", {
   userIdIdx: index("api_key_user_id_idx").on(t.userId),
   keyPrefixIdx: index("api_key_key_prefix_idx").on(t.keyPrefix),
 }))
-

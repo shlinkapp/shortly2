@@ -26,14 +26,19 @@ const settingsUpdateSchema = z.object({
       .refine((url) => url === "" || normalizeBaseUrl(url) !== null, "siteUrl must be a valid http(s) URL")
       .optional()
   ),
-  allowAnonymous: z.preprocess(
+  telegramBotUsername: z.preprocess(
     (value) => (value === null ? undefined : value),
-    z.boolean().optional()
+    z.string().trim().max(64).optional()
   ),
-  anonMaxLinksPerHour: optionalPositiveInt,
-  anonMaxClicks: optionalPositiveInt,
   userMaxLinksPerHour: optionalPositiveInt,
 })
+
+function normalizeTelegramBotUsername(input: string | undefined): string | undefined {
+  if (input === undefined) return undefined
+  const trimmed = input.trim()
+  if (!trimmed) return ""
+  return trimmed.replace(/^@+/, "")
+}
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -73,19 +78,26 @@ export async function POST(req: NextRequest) {
   const {
     siteName,
     siteUrl,
-    allowAnonymous,
-    anonMaxLinksPerHour,
-    anonMaxClicks,
+    telegramBotUsername,
     userMaxLinksPerHour,
   } = parsed.data
+  const normalizedTelegramBotUsername = normalizeTelegramBotUsername(telegramBotUsername)
+
+  if (
+    normalizedTelegramBotUsername &&
+    !/^[a-zA-Z0-9_]{5,32}$/.test(normalizedTelegramBotUsername)
+  ) {
+    return NextResponse.json(
+      { error: "TG Bot 用户名格式无效，仅允许 5-32 位字母、数字或下划线" },
+      { status: 400 }
+    )
+  }
 
   try {
     const updated = await writeSiteSettings({
       siteName,
       siteUrl,
-      allowAnonymous,
-      anonMaxLinksPerHour,
-      anonMaxClicks,
+      telegramBotUsername: normalizedTelegramBotUsername,
       userMaxLinksPerHour,
     })
 
