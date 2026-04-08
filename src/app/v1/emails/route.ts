@@ -3,6 +3,7 @@ import { initDb } from "@/lib/db"
 import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
 import { createTempMailboxForUser, listTempMailboxesForUser } from "@/lib/temp-email"
 import { parseBoundedInt } from "@/lib/http"
+import { getSiteSettings } from "@/lib/site-settings"
 
 export async function GET(req: NextRequest) {
   await initDb()
@@ -35,12 +36,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "emailAddress is required" }, { status: 400 })
   }
 
-  const result = await createTempMailboxForUser(authResult.data.userId, emailAddress)
+  const settings = await getSiteSettings()
+  const result = await createTempMailboxForUser(authResult.data.userId, emailAddress, {
+    hourlyCreateLimit: settings?.userMaxLinksPerHour ?? 50,
+  })
   await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
 
   if ("error" in result) {
-    const status = result.error === "This email address already exists" ? 409 : 400
-    return NextResponse.json({ error: result.error }, { status })
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
   return NextResponse.json({ data: result.data }, { status: 201 })

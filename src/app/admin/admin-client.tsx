@@ -1591,7 +1591,7 @@ export function AdminClient({ user }: AdminClientProps) {
                     </p>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="userMaxLinksPerHour">用户每小时创建数</Label>
+                    <Label htmlFor="userMaxLinksPerHour">用户每小时创建数（短链 / 临时邮箱）</Label>
                     <Input
                       id="userMaxLinksPerHour"
                       type="number"
@@ -1601,6 +1601,9 @@ export function AdminClient({ user }: AdminClientProps) {
                         setSettings((s) => ({ ...s, userMaxLinksPerHour: parseInt(e.target.value) || 0 }))
                       }
                     />
+                    <p className="text-xs text-muted-foreground">
+                      该上限同时应用于短链创建和临时邮箱创建。
+                    </p>
                   </div>
                   <Button onClick={handleSaveSettings} disabled={savingSettings} className="mt-2 w-fit">
                     <Save className="h-4 w-4" />

@@ -108,6 +108,10 @@ type TempMessageAttachmentRecord = {
   size: number
 }
 
+type CreateTempMailboxOptions = {
+  hourlyCreateLimit?: number
+}
+
 async function listTempMessageAttachments(messageRowId: string): Promise<TempMessageAttachmentRecord[]> {
   return db
     .select({
@@ -346,19 +350,23 @@ async function notifyMailboxOwnerOnTelegram(
 }
 
 
-export async function createTempMailboxForUser(userId: string, emailAddress: string) {
+export async function createTempMailboxForUser(
+  userId: string,
+  emailAddress: string,
+  options?: CreateTempMailboxOptions
+) {
   const parsed = parseEmailAddress(emailAddress)
   if (!parsed) {
-    return { error: "Invalid email address" as const }
+    return { error: "Invalid email address", status: 400 as const }
   }
 
   const allowedDomain = await getAllowedEmailDomain(parsed.domain)
   if (!allowedDomain) {
-    return { error: "This email domain is not enabled" as const }
+    return { error: "This email domain is not enabled", status: 400 as const }
   }
 
   if (parsed.localPart.length < allowedDomain.minLocalPartLength) {
-    return { error: `邮箱前缀至少需要 ${allowedDomain.minLocalPartLength} 个字符` as const }
+    return { error: `邮箱前缀至少需要 ${allowedDomain.minLocalPartLength} 个字符`, status: 400 as const }
   }
 
   const finalEmailAddress = `${parsed.localPart}@${allowedDomain.host}`
@@ -369,7 +377,30 @@ export async function createTempMailboxForUser(userId: string, emailAddress: str
     .get()
 
   if (existing) {
-    return { error: "This email address already exists" as const }
+    return { error: "This email address already exists", status: 409 as const }
+  }
+
+  const normalizedHourlyLimit = Number.isFinite(options?.hourlyCreateLimit)
+    ? Math.max(1, Math.floor(options?.hourlyCreateLimit ?? 1))
+    : null
+  if (normalizedHourlyLimit) {
+    const oneHourAgoInSeconds = Math.floor((Date.now() - 60 * 60 * 1000) / 1000)
+    const recentMailboxes = await db.select({ count: sql<number>`count(*)` })
+      .from(tempMailbox)
+      .where(
+        and(
+          eq(tempMailbox.userId, userId),
+          sql`${tempMailbox.createdAt} >= ${oneHourAgoInSeconds}`
+        )
+      )
+      .get()
+
+    if ((recentMailboxes?.count ?? 0) >= normalizedHourlyLimit) {
+      return {
+        error: `每小时最多创建 ${normalizedHourlyLimit} 个临时邮箱，请稍后再试`,
+        status: 429 as const,
+      }
+    }
   }
 
   const id = crypto.randomUUID()
