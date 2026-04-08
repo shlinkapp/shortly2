@@ -12,6 +12,7 @@ import {
 import { getAllowedEmailDomain, parseDomainHost } from "@/lib/site-domains"
 import { reportDiagnostic } from "@/lib/observability"
 import { sendInboundEmailTelegramNotification } from "@/lib/telegram"
+import { isBlockedTempEmailPrefix } from "@/lib/temp-email-prefix"
 
 function reportTempEmailWarning(event: string, details: Record<string, unknown>) {
   reportDiagnostic({
@@ -358,6 +359,10 @@ export async function createTempMailboxForUser(
   const parsed = parseEmailAddress(emailAddress)
   if (!parsed) {
     return { error: "Invalid email address", status: 400 as const }
+  }
+
+  if (isBlockedTempEmailPrefix(parsed.localPart)) {
+    return { error: "该邮箱前缀为系统保留词，请更换前缀", status: 400 as const }
   }
 
   const allowedDomain = await getAllowedEmailDomain(parsed.domain)
