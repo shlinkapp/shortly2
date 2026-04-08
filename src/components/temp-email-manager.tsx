@@ -277,8 +277,8 @@ function getMessageSenderSecondary(
 }
 
 function getInitialMessageDetailTab(detail: MessageDetailRecord): MessageDetailTab {
-  if (detail.hasText) return "text"
   if (detail.hasHtml) return "html"
+  if (detail.hasText) return "text"
   return "source"
 }
 
@@ -414,7 +414,7 @@ function clearMessageDetailState() {
     error: null as string | null,
     selected: null as MessageRecord | null,
     loading: false,
-    tab: "text" as MessageDetailTab,
+    tab: getDefaultDetailTab(),
   }
 }
 
@@ -677,7 +677,7 @@ function getCopySourceValue(detail: MessageDetailRecord | null) {
 }
 
 function getDefaultDetailTab() {
-  return "text" as MessageDetailTab
+  return "html" as MessageDetailTab
 }
 
 function normalizeDetailTab(value: string, detail: MessageDetailRecord | null) {
@@ -976,6 +976,7 @@ export function TempEmailManager() {
   const [messageDetailError, setMessageDetailError] = useState<string | null>(null)
   const [loadingMessageDetail, setLoadingMessageDetail] = useState(false)
   const [messageDetailTab, setMessageDetailTab] = useState<MessageDetailTab>(getDefaultDetailTab())
+  const [messageDetailReloadNonce, setMessageDetailReloadNonce] = useState(0)
   const latestMessageRequestIdRef = useRef(0)
   const latestDetailRequestIdRef = useRef(0)
   const hasShownMailboxUnavailableToastRef = useRef(false)
@@ -1214,7 +1215,11 @@ export function TempEmailManager() {
       return
     }
 
-    setSelectedMessage({ ...selectedMessage })
+    setMessageDetail(null)
+    setMessageDetailError(null)
+    setLoadingMessageDetail(true)
+    setMessageDetailTab(getDefaultDetailTab())
+    setMessageDetailReloadNonce((current) => current + 1)
   }, [selectedMessage])
 
   async function handleCopyMessageSource() {
@@ -1232,6 +1237,9 @@ export function TempEmailManager() {
     setMessageDetailError(null)
     setLoadingMessageDetail(true)
     setMessageDetailTab(getDefaultDetailTab())
+    if (shouldAutoMarkRead(message)) {
+      void handleMarkRead(message.id)
+    }
   }
 
   function handleMessageDialogOpenChange(open: boolean) {
@@ -1282,6 +1290,9 @@ export function TempEmailManager() {
       if (document.visibilityState !== "visible") {
         return
       }
+      if (messageDialogOpen) {
+        return
+      }
       if (loadingMailboxes || loadingMessages) {
         return
       }
@@ -1290,7 +1301,7 @@ export function TempEmailManager() {
     }, 15000)
 
     return () => window.clearInterval(interval)
-  }, [fetchMailboxes, fetchMessages, loadingMailboxes, loadingMessages, selectedMailboxId])
+  }, [fetchMailboxes, fetchMessages, loadingMailboxes, loadingMessages, messageDialogOpen, selectedMailboxId])
 
   function handleGenerateRandomPrefix() {
     setMailboxInput(getRandomPrefix())
@@ -1364,7 +1375,8 @@ export function TempEmailManager() {
   }, [fetchMailboxes])
 
   useEffect(() => {
-    if (!selectedMessage) {
+    const currentSelectedMessageId = selectedMessage?.id
+    if (!currentSelectedMessageId) {
       latestDetailRequestIdRef.current += 1
       setMessageDetail(null)
       setMessageDetailError(null)
@@ -1381,12 +1393,12 @@ export function TempEmailManager() {
 
     void (async () => {
       try {
-        const res = await fetch(`/api/emails/messages/${selectedMessage.id}`)
+        const res = await fetch(`/api/emails/messages/${currentSelectedMessageId}`)
         const body = await readOptionalJson<MessageDetailResponse & { error?: string }>(res)
         if (!res.ok) {
           const message = getResponseErrorMessage(body, getMessageDetailOpenErrorCopy())
           tempEmailReporter.warn("fetch_message_detail_failed_response", {
-            messageId: selectedMessage.id,
+            messageId: currentSelectedMessageId,
             status: res.status,
           })
           if (latestDetailRequestIdRef.current === requestId) {
@@ -1404,7 +1416,7 @@ export function TempEmailManager() {
       } catch (error) {
         const message = getUserFacingErrorMessage(error, getMessageDetailOpenErrorCopy())
         tempEmailReporter.report("fetch_message_detail_failed_exception", error, {
-          messageId: selectedMessage.id,
+          messageId: currentSelectedMessageId,
         })
         if (latestDetailRequestIdRef.current === requestId) {
           setMessageDetailError(message)
@@ -1415,11 +1427,7 @@ export function TempEmailManager() {
         }
       }
     })()
-
-    if (shouldAutoMarkRead(selectedMessage)) {
-      void handleMarkRead(selectedMessage.id)
-    }
-  }, [handleMarkRead, selectedMessage])
+  }, [messageDetailReloadNonce, selectedMessage?.id])
 
   async function handleDeleteMessage(messageId: string) {
     setMutatingMessageId(messageId)
