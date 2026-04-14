@@ -433,14 +433,19 @@ export function ShortLinkCreator({
             </div>
           )}
           <div className={isHomepageMode ? "flex flex-col gap-3 sm:flex-row sm:items-center" : "flex flex-col gap-3 rounded-lg border bg-muted/40 px-3 py-3 sm:flex-row sm:items-center"}>
-            <a
-              href={result.shortUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={isHomepageMode ? "min-w-0 flex-1 truncate text-base font-medium hover:underline" : "min-w-0 flex-1 truncate text-sm font-medium text-primary hover:underline"}
-            >
-              {result.shortUrl}
-            </a>
+            <div className="min-w-0 flex-1 space-y-1">
+              <a
+                href={result.shortUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={isHomepageMode ? "block break-all text-base font-medium hover:underline" : "block break-all text-sm font-medium text-primary hover:underline"}
+              >
+                {result.shortUrl}
+              </a>
+              <p className="text-xs text-muted-foreground break-all">
+                {result.domain}/{result.slug}
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
                 <Copy className="h-4 w-4" />
@@ -469,17 +474,5 @@ export function ShortLinkCreator({
     </div>
   )
 
-  if (!modeMeta.showContainer) {
-    return content
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{modeMeta.title}</CardTitle>
-        <CardDescription>{modeMeta.description}</CardDescription>
-      </CardHeader>
-      <CardContent>{content}</CardContent>
-    </Card>
-  )
+  return content
 }

@@ -61,8 +61,8 @@ export function UserMenu({ user, layout = "icon", align = "end", className }: Us
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <p className="truncate text-sm font-medium">{user.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+              <p className="break-words text-sm font-medium">{user.name}</p>
+              <p className="break-all text-xs text-muted-foreground">{user.email}</p>
             </div>
             <ChevronsUpDown className="h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
           </Button>
@@ -75,11 +75,11 @@ export function UserMenu({ user, layout = "icon", align = "end", className }: Us
           </Button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-56">
+      <DropdownMenuContent align={align} className="w-56 max-w-[calc(100vw-2rem)]">
         <DropdownMenuLabel>
-          <div className="flex flex-col">
-            <span className="font-medium">{user.name}</span>
-            <span className="text-xs text-muted-foreground">{user.email}</span>
+          <div className="flex min-w-0 flex-col">
+            <span className="break-words font-medium">{user.name}</span>
+            <span className="break-all text-xs text-muted-foreground">{user.email}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

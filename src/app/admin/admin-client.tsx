@@ -50,7 +50,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { toast } from "sonner"
-import { Archive, ArrowLeft, BarChart2, ExternalLink, Inbox, Link2, Mail, Pencil, Plus, Save, Settings2, Shield, Trash2, Users } from "lucide-react"
+import { Archive, ArrowLeft, BarChart2, Copy, ExternalLink, Inbox, Link2, Mail, Pencil, Plus, Save, Settings2, Shield, Trash2, Users } from "lucide-react"
 import Link from "next/link"
 import { useMediaQuery } from "@/lib/use-media-query"
 
@@ -299,24 +299,35 @@ function formatMessageContact(contact: MessageContactRecord) {
   return contact.address || contact.name || ""
 }
 
-const iframeSandbox = "allow-popups-to-escape-sandbox"
+const iframeSandbox = ""
+
+function sanitizeEmailHtml(html: string) {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed\b[^>]*>/gi, "")
+    .replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s(href|src)=("|')\s*javascript:[\s\S]*?\2/gi, "")
+}
+
 const iframeSrcDocPrefix = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><base target=\"_blank\"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#2563eb}</style></head><body>"
 const iframeSrcDocSuffix = "</body></html>"
 
 function buildIframeSrcDoc(html: string) {
-  return `${iframeSrcDocPrefix}${html}${iframeSrcDocSuffix}`
+  return `${iframeSrcDocPrefix}${sanitizeEmailHtml(html)}${iframeSrcDocSuffix}`
 }
 
 function getOpenMessageSubjectButtonClassName() {
-  return "truncate text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  return "w-full truncate text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 }
 
 function getOpenMessageSubjectMobileButtonClassName() {
-  return "w-full text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  return "w-full truncate text-left text-sm text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 }
 
 function getMessageDetailDialogClassName() {
-  return "flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0"
+  return "flex max-h-[min(92vh,56rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0"
 }
 
 function buildAdminEmailSource(detail: AdminEmailDetailRecord, selection: AdminEmailSelection) {
@@ -568,6 +579,16 @@ export function AdminClient({ user }: AdminClientProps) {
 
   async function handleSearchEmails() {
     await fetchEmailData(emailSearch)
+  }
+
+  async function handleCopy(text: string, message: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(message)
+    } catch (error) {
+      adminReporter.report("copy_failed_exception", error)
+      toast.error(getUserFacingErrorMessage(error, "复制失败，请手动复制"))
+    }
   }
 
   async function handleDeleteLinkConfirm(link: AdminLink) {
@@ -1017,7 +1038,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex items-center gap-1 max-w-[160px] sm:max-w-[200px]">
+                              <div className="flex min-w-0 items-center gap-1 max-w-[160px] sm:max-w-[200px]">
                                     <span className="truncate text-sm text-muted-foreground">{link.originalUrl}</span>
                                     <a
                                       href={link.originalUrl}
@@ -1060,7 +1081,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                   <div className="flex items-center justify-end gap-1">
                                     <Button
                                       variant="ghost"
-                                      size="icon-sm"
+                                      size="icon"
                                       onClick={() => handleViewLogs(link)}
                                       title="查看日志"
                                       aria-label={`查看短链 /${link.slug} 的日志`}
@@ -1069,7 +1090,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                     </Button>
                                     <Button
                                       variant="ghost"
-                                      size="icon-sm"
+                                      size="icon"
                                       onClick={() => setPendingDeleteLink(link)}
                                       className="text-destructive hover:text-destructive"
                                       title="删除短链"
@@ -1205,7 +1226,24 @@ export function AdminClient({ user }: AdminClientProps) {
                         {users.map((u) => (
                           <TableRow key={u.id}>
                             <TableCell className="font-medium">{u.name}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground truncate max-w-[160px]">{u.email}</TableCell>
+                            <TableCell>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate text-sm text-muted-foreground">{u.email}</p>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0"
+                                    onClick={() => void handleCopy(u.email, "用户邮箱已复制")}
+                                    aria-label={`复制用户邮箱 ${u.email}`}
+                                    title="复制用户邮箱"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
                             </TableCell>
@@ -1225,7 +1263,20 @@ export function AdminClient({ user }: AdminClientProps) {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-medium">{u.name}</p>
-                            <p className="truncate text-sm text-muted-foreground">{u.email}</p>
+                            <div className="mt-1 flex items-center gap-2">
+                              <p className="truncate text-sm text-muted-foreground">{u.email}</p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="shrink-0"
+                                onClick={() => void handleCopy(u.email, "用户邮箱已复制")}
+                                aria-label={`复制用户邮箱 ${u.email}`}
+                                title="复制用户邮箱"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                           <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
                         </div>
@@ -1309,8 +1360,21 @@ export function AdminClient({ user }: AdminClientProps) {
                             {mailboxes.map((mailbox) => (
                               <TableRow key={mailbox.id}>
                                 <TableCell>
-                                  <div className="min-w-0">
-                                    <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
+                                  <div className="min-w-0 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <p className="truncate font-mono text-sm">{mailbox.emailAddress}</p>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0"
+                                        onClick={() => void handleCopy(mailbox.emailAddress, "邮箱地址已复制")}
+                                        aria-label={`复制邮箱地址 ${mailbox.emailAddress}`}
+                                        title="复制邮箱地址"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                     <p className="text-xs text-muted-foreground">{formatDate(mailbox.createdAt)}</p>
                                   </div>
                                 </TableCell>
@@ -1392,12 +1456,25 @@ export function AdminClient({ user }: AdminClientProps) {
                               <TableRow key={message.id}>
                                 <TableCell>
                                   <div className="min-w-0 text-sm">
-                                    <p className="truncate font-mono">{message.mailboxEmailAddress}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="truncate font-mono">{message.mailboxEmailAddress}</p>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0"
+                                        onClick={() => void handleCopy(message.mailboxEmailAddress, "收件邮箱已复制")}
+                                        aria-label={`复制收件邮箱 ${message.mailboxEmailAddress}`}
+                                        title="复制收件邮箱"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                     <p className="truncate text-xs text-muted-foreground">{getMailboxOwnerLabel(message)}</p>
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="max-w-[280px]">
+                                  <div className="min-w-0 max-w-[280px]">
                                     <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
                                     <button
                                       type="button"
@@ -1406,7 +1483,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                     >
                                       {message.subject || "(无主题)"}
                                     </button>
-                                    <p className="mt-1 truncate text-xs text-muted-foreground">{getEmailPreview(message.text, message.html)}</p>
+                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground break-all">{getEmailPreview(message.text, message.html)}</p>
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -1431,8 +1508,8 @@ export function AdminClient({ user }: AdminClientProps) {
                           <div key={message.id} className="rounded-lg border p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate font-mono text-sm">{message.mailboxEmailAddress}</p>
-                                <p className="truncate text-xs text-muted-foreground">{getMailboxOwnerLabel(message)}</p>
+                                <p className="break-all font-mono text-sm">{message.mailboxEmailAddress}</p>
+                                <p className="break-all text-xs text-muted-foreground">{getMailboxOwnerLabel(message)}</p>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 <Badge variant={message.isRead ? "outline" : "secondary"}>
@@ -1442,7 +1519,7 @@ export function AdminClient({ user }: AdminClientProps) {
                               </div>
                             </div>
                             <div className="mt-3 max-w-full">
-                              <p className="truncate text-sm font-medium">{message.fromName || message.from}</p>
+                              <p className="break-all text-sm font-medium">{message.fromName || message.from}</p>
                               <button
                                 type="button"
                                 className={getOpenMessageSubjectMobileButtonClassName()}
@@ -1486,13 +1563,26 @@ export function AdminClient({ user }: AdminClientProps) {
                               <TableRow key={archive.id}>
                                 <TableCell>
                                   <div className="min-w-0 text-sm">
-                                    <p className="truncate font-mono">{archive.toEmail}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
+                                    <div className="flex items-start gap-2">
+                                      <p className="break-all font-mono">{archive.toEmail}</p>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0"
+                                        onClick={() => void handleCopy(archive.toEmail, "目标邮箱已复制")}
+                                        aria-label={`复制目标邮箱 ${archive.toEmail}`}
+                                        title="复制目标邮箱"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                    <p className="break-all text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="max-w-[280px]">
-                                    <p className="truncate text-sm font-medium">{archive.fromName || archive.from}</p>
+                                  <div className="min-w-0 max-w-[280px]">
+                                    <p className="break-all text-sm font-medium">{archive.fromName || archive.from}</p>
                                     <button
                                       type="button"
                                       className={getOpenMessageSubjectButtonClassName()}
@@ -1500,7 +1590,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                     >
                                       {archive.subject || "(无主题)"}
                                     </button>
-                                    <p className="mt-1 truncate text-xs text-muted-foreground">{getEmailPreview(archive.text, archive.html)}</p>
+                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground break-all">{getEmailPreview(archive.text, archive.html)}</p>
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -1523,8 +1613,21 @@ export function AdminClient({ user }: AdminClientProps) {
                           <div key={archive.id} className="rounded-lg border p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate font-mono text-sm">{archive.toEmail}</p>
-                                <p className="truncate text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="break-all font-mono text-sm">{archive.toEmail}</p>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0"
+                                    onClick={() => void handleCopy(archive.toEmail, "目标邮箱已复制")}
+                                    aria-label={`复制目标邮箱 ${archive.toEmail}`}
+                                    title="复制目标邮箱"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <p className="break-all text-xs text-muted-foreground">{archive.messageId || "无 Message-ID"}</p>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 <Badge variant="destructive">{archive.failureReason}</Badge>
@@ -1532,7 +1635,7 @@ export function AdminClient({ user }: AdminClientProps) {
                               </div>
                             </div>
                             <div className="mt-3 max-w-full">
-                              <p className="truncate text-sm font-medium">{archive.fromName || archive.from}</p>
+                              <p className="break-all text-sm font-medium">{archive.fromName || archive.from}</p>
                               <button
                                 type="button"
                                 className={getOpenMessageSubjectMobileButtonClassName()}
@@ -1605,7 +1708,7 @@ export function AdminClient({ user }: AdminClientProps) {
                       该上限同时应用于短链创建和临时邮箱创建。
                     </p>
                   </div>
-                  <Button onClick={handleSaveSettings} disabled={savingSettings} className="mt-2 w-fit">
+                  <Button onClick={handleSaveSettings} disabled={savingSettings} className="mt-2 w-full sm:w-fit">
                     <Save className="h-4 w-4" />
                     {savingSettings ? "保存中..." : "保存"}
                   </Button>
@@ -1651,7 +1754,22 @@ export function AdminClient({ user }: AdminClientProps) {
                         <TableBody>
                           {domains.map((domain) => (
                             <TableRow key={domain.id}>
-                              <TableCell className="font-mono text-sm">{domain.host}</TableCell>
+                              <TableCell>
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <p className="break-all font-mono text-sm">{domain.host}</p>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0"
+                                    onClick={() => void handleCopy(domain.host, "域名已复制")}
+                                    aria-label={`复制域名 ${domain.host}`}
+                                    title="复制域名"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-2">
                                   {domain.supportsShortLinks && (
@@ -1686,7 +1804,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                 <div className="flex items-center justify-end gap-1">
                                   <Button
                                     variant="ghost"
-                                    size="icon-sm"
+                                    size="icon"
                                     onClick={() => openEditDomainDialog(domain)}
                                     title="编辑域名"
                                     aria-label={`编辑域名 ${domain.host}`}
@@ -1695,7 +1813,7 @@ export function AdminClient({ user }: AdminClientProps) {
                                   </Button>
                                   <Button
                                     variant="ghost"
-                                    size="icon-sm"
+                                    size="icon"
                                     onClick={() => setPendingDeleteDomain(domain)}
                                     className="text-destructive hover:text-destructive"
                                     title="删除域名"
@@ -1723,7 +1841,7 @@ export function AdminClient({ user }: AdminClientProps) {
         setDomainDialogOpen(open)
         if (!open) resetDomainForm()
       }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-[calc(100vw-2rem)] max-h-[min(92vh,48rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingDomain ? "编辑域名" : "新增域名"}</DialogTitle>
           </DialogHeader>
@@ -1739,49 +1857,49 @@ export function AdminClient({ user }: AdminClientProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={domainForm.supportsShortLinks}
                   onChange={(e) => updateDomainForm("supportsShortLinks", e.target.checked)}
-                  className="h-4 w-4 rounded border"
+                  className="h-4 w-4 rounded border shrink-0"
                 />
                 支持短链接
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={domainForm.supportsTempEmail}
                   onChange={(e) => updateDomainForm("supportsTempEmail", e.target.checked)}
-                  className="h-4 w-4 rounded border"
+                  className="h-4 w-4 rounded border shrink-0"
                 />
                 支持临时邮箱
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={domainForm.isActive}
                   onChange={(e) => updateDomainForm("isActive", e.target.checked)}
-                  className="h-4 w-4 rounded border"
+                  className="h-4 w-4 rounded border shrink-0"
                 />
                 启用域名
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={domainForm.isDefaultShortDomain}
                   onChange={(e) => updateDomainForm("isDefaultShortDomain", e.target.checked)}
-                  className="h-4 w-4 rounded border"
+                  className="h-4 w-4 rounded border shrink-0"
                   disabled={!domainForm.supportsShortLinks || !domainForm.isActive}
                 />
                 默认短链域名
               </label>
-              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <label className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
                   checked={domainForm.isDefaultEmailDomain}
                   onChange={(e) => updateDomainForm("isDefaultEmailDomain", e.target.checked)}
-                  className="h-4 w-4 rounded border"
+                  className="h-4 w-4 rounded border shrink-0"
                   disabled={!domainForm.supportsTempEmail || !domainForm.isActive}
                 />
                 默认邮箱域名
@@ -1822,11 +1940,11 @@ export function AdminClient({ user }: AdminClientProps) {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setDomainDialogOpen(false)}>
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setDomainDialogOpen(false)} className="w-full sm:w-auto">
                 取消
               </Button>
-              <Button onClick={handleSaveDomain} disabled={savingDomain}>
+              <Button onClick={handleSaveDomain} disabled={savingDomain} className="w-full sm:w-auto">
                 <Save className="h-4 w-4" />
                 {savingDomain ? "保存中..." : editingDomain ? "保存修改" : "创建域名"}
               </Button>
@@ -1838,7 +1956,7 @@ export function AdminClient({ user }: AdminClientProps) {
       <Dialog open={!!selectedEmailItem} onOpenChange={handleEmailDetailDialogOpenChange}>
         <DialogContent className={getMessageDetailDialogClassName()}>
           <DialogHeader className="border-b pb-4 pr-8">
-            <DialogTitle className="truncate">{selectedEmailItem?.summary.subject || "(无主题)"}</DialogTitle>
+            <DialogTitle className="break-words">{selectedEmailItem?.summary.subject || "(无主题)"}</DialogTitle>
             <DialogDescription className="space-y-2 pt-2 text-xs sm:text-sm">
               {selectedEmailItem?.kind === "message" ? (
                 <>
@@ -1850,9 +1968,9 @@ export function AdminClient({ user }: AdminClientProps) {
                     {emailDetail?.hasAttachments && <Badge variant="outline">附件 {emailDetail.attachments.length}</Badge>}
                   </div>
                   <div className="space-y-1 text-muted-foreground">
-                    <p>发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
-                    <p>收件邮箱：{selectedEmailItem.summary.mailboxEmailAddress}</p>
-                    <p>所属用户：{getMailboxOwnerLabel(selectedEmailItem.summary)}</p>
+                    <p className="break-all">发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
+                    <p className="break-all">收件邮箱：{selectedEmailItem.summary.mailboxEmailAddress}</p>
+                    <p className="break-all">所属用户：{getMailboxOwnerLabel(selectedEmailItem.summary)}</p>
                     <p>时间：{formatDate(selectedEmailItem.summary.receivedAt)}</p>
                   </div>
                 </>
@@ -1863,8 +1981,8 @@ export function AdminClient({ user }: AdminClientProps) {
                     {emailDetail?.hasAttachments && <Badge variant="outline">附件 {emailDetail.attachments.length}</Badge>}
                   </div>
                   <div className="space-y-1 text-muted-foreground">
-                    <p>发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
-                    <p>目标邮箱：{selectedEmailItem.summary.toEmail}</p>
+                    <p className="break-all">发件人：{selectedEmailItem.summary.fromName || selectedEmailItem.summary.from}</p>
+                    <p className="break-all">目标邮箱：{selectedEmailItem.summary.toEmail}</p>
                     <p>时间：{formatDate(selectedEmailItem.summary.receivedAt)}</p>
                   </div>
                 </>
@@ -1931,11 +2049,11 @@ export function AdminClient({ user }: AdminClientProps) {
       </Dialog>
 
       <Dialog open={logsDialogOpen} onOpenChange={closeLogsDialog}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-h-[min(92vh,44rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="break-words">
               日志
-              {selectedLink && <span className="ml-2 font-mono text-sm text-muted-foreground">/{selectedLink.slug}</span>}
+              {selectedLink && <span className="ml-2 break-all font-mono text-sm text-muted-foreground">/{selectedLink.slug}</span>}
             </DialogTitle>
             <DialogDescription>查看访问记录。</DialogDescription>
           </DialogHeader>
@@ -2004,8 +2122,8 @@ export function AdminClient({ user }: AdminClientProps) {
                   </div>
                   <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                     <p>状态码：{log.statusCode ?? "—"}</p>
-                    <p className="truncate">来源：{log.referrer || "直接访问"}</p>
-                    <p className="truncate">IP：{log.ipAddress || "—"}</p>
+                    <p className="break-all">来源：{log.referrer || "直接访问"}</p>
+                    <p className="break-all">IP：{log.ipAddress || "—"}</p>
                   </div>
                 </div>
               ))}
@@ -2021,7 +2139,7 @@ export function AdminClient({ user }: AdminClientProps) {
             <DialogDescription>
               删除后将无法恢复。
               {pendingDeleteLink && (
-                <span className="mt-2 block font-mono text-xs text-muted-foreground">
+                <span className="mt-2 block break-all font-mono text-xs text-muted-foreground">
                   /{pendingDeleteLink.slug}
                 </span>
               )}
@@ -2049,7 +2167,7 @@ export function AdminClient({ user }: AdminClientProps) {
             <DialogDescription>
               {pendingDeleteDomain ? getDomainDeleteHelpText(pendingDeleteDomain) : "删除后将无法恢复。"}
               {pendingDeleteDomain && (
-                <span className="mt-2 block font-mono text-xs text-muted-foreground">
+                <span className="mt-2 block break-all font-mono text-xs text-muted-foreground">
                   {pendingDeleteDomain.host}
                 </span>
               )}

@@ -4,6 +4,8 @@ import { AuthForm } from "@/components/auth-form";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Zap } from "lucide-react";
+import Image from "next/image";
 
 export default async function LoginPage() {
   const headersList = await headers();
@@ -18,48 +20,77 @@ export default async function LoginPage() {
   );
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('https://api.staticdn.net/bing')" }}
-      />
-      <div className="absolute inset-0 bg-black/40" />
+    <main className="flex min-h-screen bg-background">
+      {/* Brand Visual Side */}
+      <section className="relative hidden w-1/2 overflow-hidden lg:block">
+        <Image
+          src="/auth-visual.png"
+          alt="Shortly Brand Visual"
+          fill
+          className="object-cover transition-transform duration-[20s] hover:scale-110"
+          priority
+        />
+        <div className="absolute inset-0 bg-black/5" />
+        <div className="absolute inset-0 flex flex-col justify-between p-12 text-white/90">
+          <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tighter mix-blend-difference">
+            <Zap className="h-6 w-6 fill-current" />
+            <span>{siteName}</span>
+          </Link>
+          <div className="max-w-md space-y-4 mix-blend-difference opacity-80">
+            <p className="text-4xl font-extrabold leading-none tracking-tight">
+              Design for <br /> Efficient Control.
+            </p>
+            <p className="text-sm font-medium">
+              Join thousands of users who trust Shortly for their daily link and mail management.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6 lg:justify-end">
-        <section className="w-full max-w-sm rounded-2xl border border-white/25 bg-white/92 p-6 shadow-[0_24px_56px_-30px_rgba(15,23,42,0.65)] backdrop-blur-sm">
-          <h1 className="mt-2 text-xl font-semibold tracking-tight">
-            登录 {siteName}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            使用邮箱验证码、GitHub 或 Passkey 登录。
-          </p>
-
-          <div className="mt-6">
-            <AuthForm
-              mode="login"
-              enableEmail={enableEmail}
-              enableGithub={enableGithub}
-              callbackUrl="/dashboard"
-            />
+      {/* Form Side */}
+      <section className="flex w-full items-center justify-center px-6 lg:w-1/2 lg:px-12">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="space-y-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/5 text-primary ring-1 ring-primary/10 lg:hidden">
+              <Zap className="h-6 w-6 fill-current" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-extrabold tracking-tight">欢迎回来</h1>
+              <p className="text-sm font-medium text-muted-foreground">
+                开启您的效率之旅 — 请选择登录方式
+              </p>
+            </div>
           </div>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            没有账户？{" "}
-            <Link
-              href="/register"
-              className="font-medium text-foreground hover:underline"
-            >
-              立即注册
-            </Link>
-          </p>
+          <AuthForm
+            mode="login"
+            enableEmail={enableEmail}
+            enableGithub={enableGithub}
+            callbackUrl="/dashboard"
+          />
 
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            <Link href="/" className="hover:text-foreground hover:underline">
-              返回首页
-            </Link>
-          </p>
-        </section>
-      </div>
+          <div className="space-y-4 pt-4">
+            <p className="text-center text-sm text-muted-foreground">
+              还没有账户？{" "}
+              <Link
+                href="/register"
+                className="font-bold text-foreground underline-offset-4 hover:underline transition-all"
+              >
+                立即免费注册
+              </Link>
+            </p>
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <Link href="/" className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                返回首页
+              </Link>
+              <div className="h-1 w-1 rounded-full bg-border" />
+              <Link href="#" className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                遇到问题？
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

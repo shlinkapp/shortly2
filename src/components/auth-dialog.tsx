@@ -13,9 +13,9 @@ interface AuthDialogProps {
 export function AuthDialog({ open, onOpenChange, enableEmail, enableGithub }: AuthDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
+      <DialogContent className="w-[calc(100vw-2rem)] max-h-[min(92vh,40rem)] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>登录至 Shortly</DialogTitle>
+          <DialogTitle className="break-words">登录至 Shortly</DialogTitle>
         </DialogHeader>
         <AuthForm
           mode="login"

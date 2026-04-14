@@ -6,9 +6,8 @@ import { createClientErrorReporter, getUserFacingErrorMessage } from "@/lib/clie
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { KeyRound, Plus, Trash2, Loader2, MonitorSmartphone } from "lucide-react"
+import { KeyRound, Plus, Trash2, Loader2, MonitorSmartphone, Copy } from "lucide-react"
 
 const passkeyReporter = createClientErrorReporter("passkey")
 
@@ -105,87 +104,114 @@ export function PasskeyManager() {
     }
   }
 
+  async function handleCopyCredentialId(credentialId: string) {
+    try {
+      await navigator.clipboard.writeText(credentialId)
+      toast.success("通行密钥 ID 已复制")
+    } catch (error) {
+      passkeyReporter.report("copy_credential_id_failed_exception", error)
+      toast.error("复制失败，请手动复制")
+    }
+  }
+
   return (
-    <Card className="max-w-3xl">
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <KeyRound className="h-4 w-4" />
-          通行密钥
-        </CardTitle>
+    <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+      <div className="space-y-4 px-1">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-primary" />
+          <h2 className="text-lg font-semibold tracking-tight">通行密钥</h2>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          通行密钥（Passkeys）是一种更安全、更便捷的登录方式。你可以使用指纹、面容或设备密码来替代传统的账号密码。
+        </p>
         {supportsPasskey && (
-          <Button onClick={handleAddPasskey} disabled={loadingAdd || isPending} size="sm">
-            {loadingAdd ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            添加
-          </Button>
+          <div className="pt-2">
+            <Button onClick={handleAddPasskey} disabled={loadingAdd || isPending} className="h-10 w-full sm:w-auto px-6 font-bold">
+              {loadingAdd ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              添加新密钥
+            </Button>
+          </div>
         )}
-      </CardHeader>
-      <CardContent>
+      </div>
+
+      <div className="space-y-6">
         {!supportsPasskey ? (
-          <div className="text-sm text-muted-foreground">当前环境不支持通行密钥。</div>
+          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
+            当前浏览器或设备环境暂不支持通行密钥。
+          </div>
         ) : isPending ? (
-          <div className="flex items-center justify-center py-8 text-center text-muted-foreground">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            加载中...
+          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+            正在载入密钥列表...
           </div>
         ) : !passkeys?.length ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">还没有通行密钥。</div>
+          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground text-center p-6">
+            你还没有添加任何通行密钥。为了账户安全，建议优先使用此登录方式。
+          </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>设备</TableHead>
-                  <TableHead className="hidden w-32 sm:table-cell">创建时间</TableHead>
-                  <TableHead className="w-24 text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {passkeys.map((pk: { id: string; name?: string; backedUp: boolean; credentialID: string; createdAt: Date }) => (
-                  <TableRow key={pk.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <MonitorSmartphone className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{pk.name || "未命名设备"}</span>
-                        {pk.backedUp && (
-                          <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                            已备份
-                          </Badge>
-                        )}
+          <div className="grid gap-3">
+            {passkeys.map((pk: { id: string; name?: string; backedUp: boolean; credentialID: string; createdAt: Date }) => (
+              <div key={pk.id} className="group relative rounded-2xl border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-full bg-primary/5 flex items-center justify-center shrink-0">
+                        <MonitorSmartphone className="h-4 w-4 text-primary/70" />
                       </div>
-                      <div className="mt-1 max-w-[200px] truncate break-all font-mono text-xs text-muted-foreground">
-                        {pk.credentialID?.substring(0, 16)}...
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-bold">{pk.name || "未命名设备"}</span>
+                          {pk.backedUp && (
+                            <Badge variant="outline" className="h-4 border-primary/20 bg-primary/5 text-[10px] font-bold text-primary px-1.5 uppercase">
+                              BACKED UP
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                          ADDED ON {pk.createdAt ? new Date(pk.createdAt).toLocaleDateString() : "UNKNOWN"}
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                      {pk.createdAt ? new Date(pk.createdAt).toLocaleDateString() : "未知"}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </div>
+                    
+                    <div className="flex items-center gap-2 rounded-lg bg-black/[0.02] border p-2.5">
+                      <code className="min-w-0 flex-1 break-all font-mono text-[10px] text-muted-foreground/80 leading-relaxed">
+                        {pk.credentialID}
+                      </code>
                       <Button
+                        type="button"
                         variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeletePasskey(pk.id)}
-                        disabled={deleteId === pk.id}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        aria-label={`删除通行密钥 ${pk.name || "未命名设备"}`}
+                        size="icon-sm"
+                        className="h-7 w-7 opacity-50 hover:opacity-100"
+                        onClick={() => void handleCopyCredentialId(pk.credentialID)}
                       >
-                        {deleteId === pk.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
+                        <Copy className="h-3 w-3" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeletePasskey(pk.id)}
+                    disabled={deleteId === pk.id}
+                    className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10"
+                  >
+                    {deleteId === pk.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

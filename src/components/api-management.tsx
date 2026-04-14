@@ -19,14 +19,6 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   Card,
   CardContent,
   CardHeader,
@@ -63,6 +55,26 @@ function maskPrefix(prefix: string): string {
 }
 
 const apiManagementReporter = createClientErrorReporter("api_management")
+
+function getDocsItemClassName() {
+  return "space-y-2"
+}
+
+function getDocsActionsClassName() {
+  return "flex flex-wrap gap-2"
+}
+
+function getDocsMetaValueClassName() {
+  return "break-all"
+}
+
+function getCodeBlockClassName() {
+  return "overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs leading-6 whitespace-pre-wrap break-all"
+}
+
+function getSharexPreviewClassName() {
+  return "max-h-80 overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-6 whitespace-pre-wrap break-all"
+}
 
 export function ApiManagementPanel() {
   const [loading, setLoading] = useState(true)
@@ -254,197 +266,219 @@ export function ApiManagementPanel() {
   }
 
   return (
-    <Tabs defaultValue="keys" className="space-y-4">
-      <TabsList className="mb-0">
-        <TabsTrigger value="keys">Key</TabsTrigger>
-        <TabsTrigger value="docs">示例</TabsTrigger>
-        <TabsTrigger value="sharex">ShareX</TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="keys" className="space-y-8">
+      <div className="flex items-center justify-between px-1">
+        <TabsList className="h-10 items-center justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger value="keys" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">API Key</TabsTrigger>
+          <TabsTrigger value="docs" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">接口示例</TabsTrigger>
+          <TabsTrigger value="sharex" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">ShareX</TabsTrigger>
+        </TabsList>
+      </div>
 
-      <TabsContent value="keys" className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <KeyRound className="h-4 w-4" />
-              新建 Key
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">完整 Key 只显示一次。</p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                placeholder="名称（可选）"
-                value={keyName}
-                onChange={(e) => setKeyName(e.target.value)}
-                maxLength={60}
-              />
-              <Button onClick={handleCreateKey} disabled={creating}>
-                {creating ? "创建中..." : "创建"}
-              </Button>
+      <TabsContent value="keys" className="mt-6 space-y-12">
+        {/* Create Key Section */}
+        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary" />
+              <h2 className="text-lg font-semibold tracking-tight">管理密钥</h2>
             </div>
-            {latestPlainKey && (
-              <div className="space-y-3 rounded-lg border px-4 py-3">
-                <code className="block overflow-x-auto text-xs">{latestPlainKey}</code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCopy(latestPlainKey, "API Key 已复制")}
-                >
-                  <Copy className="h-4 w-4" />
-                  复制
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              API 密钥允许你在其他应用程序中使用 Shortly 的功能。为了安全起见，完整的 Key 只会在创建时显示一次。
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            <section className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-foreground/80 lowercase tracking-wider">NEW KEY</h3>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="密钥名称 (可选)"
+                  value={keyName}
+                  onChange={(e) => setKeyName(e.target.value)}
+                  maxLength={60}
+                  className="h-10"
+                />
+                <Button onClick={handleCreateKey} disabled={creating} className="h-10 whitespace-nowrap px-6">
+                  {creating ? "正在生成..." : "生成新密钥"}
                 </Button>
               </div>
-            )}
+              
+              {latestPlainKey && (
+                <div className="mt-4 space-y-3 rounded-xl border-2 border-primary/20 bg-primary/[0.02] p-4">
+                   <div className="flex items-center justify-between gap-4">
+                     <p className="text-xs font-bold text-primary uppercase tracking-widest">请立即复制</p>
+                     <Badge variant="outline" className="bg-primary/5 text-[10px] font-mono border-primary/10">Secret</Badge>
+                   </div>
+                   <div className="flex items-center gap-2 rounded-lg bg-background p-3 border">
+                     <code className="min-w-0 flex-1 break-all font-mono text-sm font-medium">{latestPlainKey}</code>
+                     <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleCopy(latestPlainKey, "API Key 已复制")}
+                        className="h-8 w-8 text-primary hover:bg-primary/5"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                   </div>
+                </div>
+              )}
+            </section>
+
             {telegramBotHandle && (
-              <div className="space-y-3 rounded-lg border border-dashed px-4 py-3">
-                <p className="text-sm font-medium">Telegram 机器人绑定</p>
-                <p className="text-xs text-muted-foreground">
-                  打开 {telegramBotHandle}，发送以下命令绑定当前 API Key：
+              <section className="rounded-2xl border border-dashed bg-muted/5 p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  <h3 className="text-sm font-semibold">Telegram 联动</h3>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  在 Telegram 中搜索 {telegramBotHandle} 并发送以下绑定命令，即可通过 TG 机器人直接创建短链和管理邮箱。
                 </p>
-                <code className="block overflow-x-auto rounded bg-muted px-2.5 py-2 text-xs">
-                  {telegramBindCommand}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCopy(telegramBindCommand, "TG 绑定命令已复制")}
-                >
-                  <Copy className="h-4 w-4" />
-                  复制绑定命令
-                </Button>
-              </div>
+                <div className="flex items-center gap-2 rounded-xl border bg-background p-3">
+                  <code className="min-w-0 flex-1 break-all font-mono text-xs text-foreground/70">{telegramBindCommand}</code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-lg text-xs font-bold"
+                    onClick={() => handleCopy(telegramBindCommand, "绑定命令已复制")}
+                  >
+                    复制
+                  </Button>
+                </div>
+              </section>
             )}
-          </CardContent>
-        </Card>
+            
+            {/* Keys Table/List */}
+            <section className="space-y-4">
+               <div className="flex items-center justify-between px-1">
+                 <h3 className="text-sm font-bold text-muted-foreground/80 uppercase tracking-widest">ACTIVE KEYS</h3>
+                 {!loading && keys.length > 0 && (
+                   <span className="text-[10px] font-bold tabular-nums text-muted-foreground">{keys.length} UNITS</span>
+                 )}
+               </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">现有 Key</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="py-8 text-center text-muted-foreground">加载中...</div>
-            ) : keys.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">暂无 API Key</div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>名称</TableHead>
-                      <TableHead>前缀</TableHead>
-                      <TableHead className="hidden md:table-cell">最后使用</TableHead>
-                      <TableHead className="hidden lg:table-cell">创建时间</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+               {loading ? (
+                  <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">正在同步密钥...</div>
+                ) : keys.length === 0 ? (
+                  <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">目前没有活跃的密钥。</div>
+                ) : (
+                  <div className="grid gap-3">
                     {keys.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono">
-                            {maskPrefix(item.keyPrefix)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground">
-                          {item.lastUsedAt ? formatDate(item.lastUsedAt) : "从未使用"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-muted-foreground">
-                          {formatDate(item.createdAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteKey(item.id)}
-                            disabled={deletingKeyId === item.id}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            删除
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      <div key={item.id} className="group relative rounded-2xl border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
+                        <div className="flex items-start justify-between gap-4">
+                           <div className="min-w-0 space-y-3">
+                             <div>
+                               <p className="truncate text-sm font-bold">{item.name || "未命名密钥"}</p>
+                               <p className="mt-1 font-mono text-[11px] text-muted-foreground tracking-tighter">
+                                 {maskPrefix(item.keyPrefix)}
+                               </p>
+                             </div>
+                             <div className="flex items-center gap-4 text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+                               <span>LAST USED: {item.lastUsedAt ? formatDate(item.lastUsedAt) : "NEVER"}</span>
+                               <span>CREATED: {formatDate(item.createdAt)}</span>
+                             </div>
+                           </div>
+                           <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10"
+                              onClick={() => handleDeleteKey(item.id)}
+                              disabled={deletingKeyId === item.id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </div>
+                )}
+            </section>
+          </div>
+        </div>
       </TabsContent>
 
-      <TabsContent value="docs">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">常用请求</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">短链：快速创建</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{gettingStartedCommand}</pre>
+      <TabsContent value="docs" className="mt-6 space-y-10">
+        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+          <div className="space-y-4 px-1">
+            <h2 className="text-xl font-bold tracking-tight">API 端点示例</h2>
+            <div className="space-y-1.5">
+               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Base Domains</p>
+               <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
+                 <div>
+                   <p className="text-[10px] font-bold text-muted-foreground mb-1 uppercase">Emails</p>
+                   <p className="font-mono text-xs break-all text-primary">{emailDomains.join(", ") || "-"}</p>
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-bold text-muted-foreground mb-1 uppercase">Short Links</p>
+                   <p className="font-mono text-xs break-all text-primary">{shortDomains.join(", ") || "-"}</p>
+                 </div>
+               </div>
             </div>
+          </div>
 
-            <div className="space-y-1">
-              <p className="text-sm font-medium">短链：进阶参数</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{advancedShortenCommand}</pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-medium">临时邮箱：创建邮箱地址</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{createMailboxCommand}</pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-medium">临时邮箱：查看某个邮箱的邮件列表</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{listMailboxMessagesCommand}</pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-medium">临时邮箱：标记邮件为已读</p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{markMessageReadCommand}</pre>
-            </div>
-
-            <div className="space-y-2 text-xs text-muted-foreground">
-              <p>邮箱域名：{emailDomains.length > 0 ? emailDomains.join(", ") : "加载后显示"}</p>
-              <p>短链域名：{shortDomains.length > 0 ? shortDomains.join(", ") : "加载后显示"}</p>
-              <p>域名接口：{domainsEndpoint}</p>
-              <p>邮箱接口：{emailsEndpoint}</p>
-              <p>邮箱消息接口：{emailMessageEndpoint}/MESSAGE_ID</p>
-              <p>标记已读接口：{emailMessageEndpoint}/MESSAGE_ID/read</p>
-              {telegramBotHandle && <p>Telegram 机器人：{telegramBotHandle}</p>}
-            </div>
-          </CardContent>
-        </Card>
+          <div className="space-y-8">
+            {[
+              { title: "URL 短链演示", cmd: gettingStartedCommand, desc: "快速创建短链的 POST 请求。" },
+              { title: "短链进阶配置", cmd: advancedShortenCommand, desc: "包含自定义别名、点击上限和过期时间的请求。" },
+              { title: "创建临时邮箱", cmd: createMailboxCommand, desc: "初始化一个新的收件箱地址。" },
+              { title: "获取邮件列表", cmd: listMailboxMessagesCommand, desc: "列出指定邮箱收到的所有消息。" }
+            ].map((example, i) => (
+              <section key={i} className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-widest">{example.title}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{example.desc}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleCopy(example.cmd)} className="h-8 rounded-lg text-xs font-bold">
+                    <Copy className="mr-2 h-3.5 w-3.5" /> 复制
+                  </Button>
+                </div>
+                <div className="relative group">
+                  <div className="absolute top-0 right-0 h-full w-4 bg-gradient-to-l from-background pointer-events-none" />
+                  <pre className="overflow-x-auto rounded-2xl border bg-black/[0.02] p-5 font-mono text-[11px] leading-relaxed text-foreground/80 break-all whitespace-pre-wrap">
+                    {example.cmd}
+                  </pre>
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
       </TabsContent>
 
-      <TabsContent value="sharex">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">ShareX</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Input
-              placeholder="粘贴 API Key"
-              value={sharexApiKey}
-              onChange={(e) => setSharexApiKey(e.target.value.trim())}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleDownloadShareXConfig}>
-                <Download className="h-4 w-4" />
-                下载
+      <TabsContent value="sharex" className="mt-6">
+        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+          <div className="space-y-4 px-1">
+            <h2 className="text-xl font-bold tracking-tight">ShareX 集成</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              针对 Windows 用户的 ShareX 图片/链接同步神器。下载以下 sxcu 配置文件并导入 ShareX 即可使用。
+            </p>
+            <div className="pt-4">
+              <Input
+                placeholder="在此粘贴你的 API Key 以填充配置"
+                value={sharexApiKey}
+                onChange={(e) => setSharexApiKey(e.target.value.trim())}
+                className="h-10 border-primary/20 bg-primary/5 placeholder:text-primary/40"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={handleDownloadShareXConfig} className="h-10 font-bold">
+                <Download className="mr-2 h-4 w-4" /> 下载配置
               </Button>
-              <Button variant="outline" onClick={() => handleCopy(sharexConfig, "配置 JSON 已复制")}>
-                <Copy className="h-4 w-4" />
-                复制 JSON
+              <Button variant="outline" onClick={() => handleCopy(sharexConfig)} className="h-10 font-bold border-dashed">
+                <Copy className="mr-2 h-4 w-4" /> 复制 JSON
               </Button>
             </div>
-            <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">
-              {sharexConfig}
-            </pre>
-          </CardContent>
-        </Card>
+          </div>
+
+          <div className="space-y-4">
+             <div className="flex items-center justify-between px-1">
+               <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Configuration Preview</h3>
+             </div>
+             <pre className="overflow-auto rounded-2xl border bg-black/[0.02] p-6 font-mono text-[10px] leading-normal text-muted-foreground/80 max-h-[30rem]">
+                {sharexConfig}
+             </pre>
+          </div>
+        </div>
       </TabsContent>
     </Tabs>
   )
