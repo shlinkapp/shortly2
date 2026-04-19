@@ -211,8 +211,7 @@ describe("addy.io compatible alias route", () => {
     expect(response.status).toBe(201)
     expect(createMailboxInputs).toHaveLength(1)
     expect(createMailboxInputs[0].userId).toBe("user_123")
-    expect(createMailboxInputs[0].emailAddress.endsWith("@signup.l")).toBe(true)
-    expect(createMailboxInputs[0].emailAddress.startsWith("alice-smith001-")).toBe(true)
+    expect(createMailboxInputs[0].emailAddress).toBe("alice-smith001@signup.l")
     expect(createMailboxInputs[0].hourlyCreateLimit).toBe(12)
     expect(body).toEqual({
       data: {
@@ -237,9 +236,28 @@ describe("addy.io compatible alias route", () => {
 
     expect(response.status).toBe(201)
     expect(createMailboxInputs).toHaveLength(2)
-    expect(createMailboxInputs[0].emailAddress.startsWith("taken-prefix001-")).toBe(true)
-    expect(createMailboxInputs[1].emailAddress.startsWith("fresh-prefix001-")).toBe(true)
+    expect(createMailboxInputs[0].emailAddress).toBe("taken-prefix001@signup.l")
+    expect(createMailboxInputs[1].emailAddress).toBe("fresh-prefix001@signup.l")
     expect(touchedApiKeys).toEqual([{ id: "key_123", userId: "user_123" }])
+  })
+
+  it("rejects domains whose minimum local-part length cannot be met without modifying the generated prefix", async () => {
+    allowedEmailDomain = {
+      host: "signup.l",
+      minLocalPartLength: 64,
+    }
+
+    const response = await POST(createRequest({ domain: "signup.l" }))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      message: "This email domain cannot generate compatible aliases.",
+      errors: {
+        domain: ["This email domain cannot generate compatible aliases."],
+      },
+    })
+    expect(createMailboxInputs).toHaveLength(0)
+    expect(touchedApiKeys).toHaveLength(0)
   })
 
   it("returns 429 when mailbox creation is rate limited", async () => {

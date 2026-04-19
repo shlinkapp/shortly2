@@ -43,22 +43,18 @@ function buildAddyError(message: string, field?: string) {
   }
 }
 
-function randomToken(length: number) {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, length)
-}
-
 function generateAliasLocalPart(minLength: number) {
   const normalizedMinLength = Math.max(1, Math.floor(minLength))
   if (normalizedMinLength > 64) {
     return null
   }
 
-  const prefix = `${generateRandomEmailPrefix()}-${randomToken(8)}`
+  const prefix = generateRandomEmailPrefix()
   if (prefix.length >= normalizedMinLength) {
     return prefix.slice(0, 64)
   }
 
-  return `${prefix}-${randomToken(64)}`.slice(0, 64)
+  return null
 }
 
 export async function POST(req: NextRequest) {
