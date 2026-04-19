@@ -56,6 +56,31 @@ type EmailListResponse = {
   totalPages: number;
 };
 
+type EmailMessageAttachment = {
+  filename?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+};
+
+type EmailMessageDetail = {
+  id: string;
+  mailboxEmailAddress: string;
+  messageId?: string | null;
+  from: string;
+  fromName?: string | null;
+  subject?: string | null;
+  text?: string | null;
+  html?: string | null;
+  receivedAt?: string | number | Date | null;
+  isRead?: boolean;
+  attachments?: EmailMessageAttachment[];
+  hasAttachments?: boolean;
+};
+
+type EmailMessageDetailResponse = {
+  data: EmailMessageDetail;
+};
+
 type ShortLinkListItem = {
   id: string;
   domain: string;
@@ -86,6 +111,7 @@ type ResolvedDomains = {
 
 type CallbackAction =
   | "email:delete"
+  | "email:detail"
   | "email:read"
   | "short:create"
   | "short:cancel"
@@ -113,6 +139,19 @@ type SendMessageOptions = {
   replyMarkup?: Record<string, unknown>;
 };
 
+type WorkerContext = {
+  env: Bindings;
+  req: {
+    url: string;
+  };
+};
+
+type EmailDetailTokenPayload = {
+  chatId: number;
+  emailId: string;
+  createdAt: number;
+};
+
 const app = new Hono<{ Bindings: Bindings }>();
 
 const HELP_TEXT = [
@@ -124,14 +163,60 @@ const HELP_TEXT = [
   "<code>/links [page]</code> 查看当前短链接列表",
   "<code>/email [prefix] [domain]</code> 创建临时邮箱",
   "<code>/emails [page]</code> 查看当前邮箱列表",
+  "<code>/delete &lt;邮箱地址&gt;</code> 删除指定临时邮箱",
   "<code>/me</code> 查看当前机器人状态",
   "<code>/cancel</code> 取消当前交互流程",
 ].join("\n");
 
 const LIST_PAGE_SIZE = 10;
 const SESSION_TTL_SECONDS = 30 * 60;
+const EMAIL_DETAIL_LINK_TTL_SECONDS = 10 * 60;
 
 app.get("/", (c) => c.text("Shortly Telegram Bot Worker is running!"));
+
+app.get("/email-detail/:token", async (c) => {
+  const detailToken = c.req.param("token");
+  const payload = await consumeEmailDetailToken(c.env, detailToken);
+
+  if (!payload) {
+    return c.html(renderNoticePage(
+      "链接已失效",
+      "这个邮件详情链接不存在、已经打开过，或已经超过有效期。",
+    ), 410);
+  }
+
+  const apiKey = await c.env.TGBOT_KV.get(getApiKeyStorageKey(payload.chatId));
+  if (!apiKey) {
+    return c.html(renderNoticePage(
+      "无法打开邮件详情",
+      "当前 Telegram 会话没有可用的 API Key 绑定，请回到机器人重新绑定。",
+    ), 401);
+  }
+
+  try {
+    const response = await fetch(
+      `${c.env.API_BASE_URL}/emails/messages/${encodeURIComponent(payload.emailId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      return c.html(renderNoticePage(
+        "无法打开邮件详情",
+        await readApiError(response),
+      ), response.status === 404 ? 404 : 502);
+    }
+
+    const detail = (await response.json()) as EmailMessageDetailResponse;
+    return c.html(renderEmailDetailPage(detail.data));
+  } catch (error) {
+    console.error("Failed to render email detail page:", error);
+    return c.html(renderNoticePage("网络异常", "无法连接 Shortly API，请稍后再试。"), 502);
+  }
+});
 
 app.post("/webhook", async (c) => {
   const update = await c.req.json<TelegramUpdate>();
@@ -262,6 +347,9 @@ async function handleCommand(
     case "/emails":
       await listMailboxes(c, chatId, apiKey ?? "", args[0]);
       return;
+    case "/delete":
+      await deleteMailbox(c, chatId, apiKey ?? "", args[0]);
+      return;
     case "/me": {
       const domains = await resolveDomains(c.env);
       await sendMessage(
@@ -349,7 +437,7 @@ async function handleShortDraftInput(
 }
 
 async function handleCallbackQuery(
-  c: { env: Bindings },
+  c: WorkerContext,
   query: TelegramCallbackQuery,
 ) {
   const action = query.data as CallbackAction;
@@ -469,14 +557,14 @@ async function handleCallbackQuery(
 }
 
 async function handleEmailMessageAction(
-  c: { env: Bindings },
+  c: WorkerContext,
   query: TelegramCallbackQuery,
   chatId: number,
 ) {
   const token = c.env.TELEGRAM_BOT_TOKEN;
   const [, action, emailId] = query.data?.split(":") || [];
 
-  if (!emailId || (action !== "read" && action !== "delete")) {
+  if (!emailId || (action !== "read" && action !== "delete" && action !== "detail")) {
     await answerCallbackQuery(token, query.id, "邮件操作参数无效。");
     return;
   }
@@ -489,6 +577,26 @@ async function handleEmailMessageAction(
       chatId,
       "当前会话缺少 API Key 绑定，请重新使用 <code>/setkey &lt;your_api_key&gt;</code>。",
     );
+    return;
+  }
+
+  if (action === "detail") {
+    const detailToken = await createEmailDetailToken(c.env, chatId, emailId);
+    const detailUrl = `${new URL(c.req.url).origin}/email-detail/${detailToken}`;
+
+    await sendMessage(
+      token,
+      chatId,
+      "邮件详情链接已生成。链接 10 分钟内有效，打开一次后失效。",
+      {
+        replyMarkup: {
+          inline_keyboard: [[
+            { text: "打开邮件详情", url: detailUrl },
+          ]],
+        },
+      },
+    );
+    await answerCallbackQuery(token, query.id, "详情链接已生成。");
     return;
   }
 
@@ -517,6 +625,7 @@ async function handleEmailMessageAction(
         await editMessageReplyMarkup(token, chatId, query.message.message_id, {
           inline_keyboard: [[
             { text: "删除", callback_data: `email:delete:${emailId}` },
+            { text: "查看邮件详情", callback_data: `email:detail:${emailId}` },
           ]],
         });
         await answerCallbackQuery(token, query.id, "已标记为已读。");
@@ -638,6 +747,55 @@ async function listMailboxes(
     );
   } catch (error) {
     console.error("Failed to list mailboxes:", error);
+    await sendMessage(token, chatId, "网络异常，请稍后再试。");
+  }
+}
+
+async function deleteMailbox(
+  c: { env: Bindings },
+  chatId: number,
+  apiKey: string,
+  rawEmailAddress?: string,
+) {
+  const token = c.env.TELEGRAM_BOT_TOKEN;
+  const emailAddress = normalizeEmailAddress(rawEmailAddress);
+
+  if (!emailAddress) {
+    await sendMessage(
+      token,
+      chatId,
+      "请提供要删除的邮箱地址。\n用法：<code>/delete name@example.com</code>",
+    );
+    return;
+  }
+
+  try {
+    const resp = await fetch(
+      `${c.env.API_BASE_URL}/emails/${encodeURIComponent(emailAddress)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+    );
+
+    if (!resp.ok) {
+      await sendMessage(
+        token,
+        chatId,
+        `邮箱删除失败。\n${escapeHtml(await readApiError(resp))}`,
+      );
+      return;
+    }
+
+    await sendMessage(
+      token,
+      chatId,
+      `邮箱 <code>${escapeHtml(emailAddress)}</code> 已删除。`,
+    );
+  } catch (error) {
+    console.error("Failed to delete mailbox:", error);
     await sendMessage(token, chatId, "网络异常，请稍后再试。");
   }
 }
@@ -908,6 +1066,55 @@ async function clearSession(env: Bindings, chatId: number) {
   await env.TGBOT_KV.delete(getSessionStorageKey(chatId));
 }
 
+async function createEmailDetailToken(env: Bindings, chatId: number, emailId: string) {
+  const token = generateRandomToken(24);
+  const payload: EmailDetailTokenPayload = {
+    chatId,
+    emailId,
+    createdAt: Date.now(),
+  };
+
+  await env.TGBOT_KV.put(
+    getEmailDetailTokenStorageKey(token),
+    JSON.stringify(payload),
+    {
+      expirationTtl: EMAIL_DETAIL_LINK_TTL_SECONDS,
+    },
+  );
+
+  return token;
+}
+
+async function consumeEmailDetailToken(env: Bindings, token: string) {
+  if (!/^[a-f0-9]{48}$/.test(token)) {
+    return null;
+  }
+
+  const storageKey = getEmailDetailTokenStorageKey(token);
+  const raw = await env.TGBOT_KV.get(storageKey);
+  if (!raw) {
+    return null;
+  }
+
+  await env.TGBOT_KV.delete(storageKey);
+
+  try {
+    const payload = JSON.parse(raw) as EmailDetailTokenPayload;
+    if (
+      !Number.isFinite(payload.chatId) ||
+      typeof payload.emailId !== "string" ||
+      !payload.emailId.trim()
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch (error) {
+    console.error("Failed to parse email detail token:", error);
+    return null;
+  }
+}
+
 function getApiKeyStorageKey(chatId: number) {
   return `user:${chatId}:apikey`;
 }
@@ -916,8 +1123,12 @@ function getSessionStorageKey(chatId: number) {
   return `user:${chatId}:session`;
 }
 
+function getEmailDetailTokenStorageKey(token: string) {
+  return `email-detail:${token}`;
+}
+
 function requiresApiKey(command: string) {
-  return ["/email", "/emails", "/links", "/me", "/short"].includes(command);
+  return ["/delete", "/email", "/emails", "/links", "/me", "/short"].includes(command);
 }
 
 function getDefaultDomains(configValue: string | undefined, fallback: string) {
@@ -942,6 +1153,21 @@ function normalizeDomain(value?: string) {
 
 function normalizeEmailPrefix(value?: string) {
   return value?.trim().toLowerCase();
+}
+
+function normalizeEmailAddress(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function generateRandomToken(byteLength: number) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function generateRandomSlug(length: number) {
@@ -990,6 +1216,203 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatDetailDate(value: EmailMessageDetail["receivedAt"]) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatBytes(value: number | null | undefined) {
+  if (!Number.isFinite(value ?? NaN)) {
+    return "";
+  }
+
+  const size = value ?? 0;
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function renderNoticePage(title: string, message: string) {
+  return renderBasePage(
+    escapeHtml(title),
+    `<main class="notice"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main>`,
+  );
+}
+
+function renderEmailDetailPage(detail: EmailMessageDetail) {
+  const sender = detail.fromName?.trim()
+    ? `${escapeHtml(detail.fromName.trim())} &lt;${escapeHtml(detail.from)}&gt;`
+    : escapeHtml(detail.from || "(未知发件人)");
+  const subject = escapeHtml(detail.subject?.trim() || "(无主题)");
+  const receivedAt = formatDetailDate(detail.receivedAt);
+  const body = detail.text?.trim() || stripHtml(detail.html || "") || "(无正文)";
+  const attachments = detail.attachments || [];
+  const attachmentList = attachments.length
+    ? `<section><h2>附件</h2><ul>${attachments.map((attachment) => {
+      const label = attachment.filename?.trim() || "未命名附件";
+      const meta = [attachment.mimeType, formatBytes(attachment.size)].filter(Boolean).join(" · ");
+      return `<li><span>${escapeHtml(label)}</span>${meta ? `<small>${escapeHtml(meta)}</small>` : ""}</li>`;
+    }).join("")}</ul></section>`
+    : "";
+
+  return renderBasePage(
+    subject,
+    [
+      "<main>",
+      "<header>",
+      "<p class=\"eyebrow\">Shortly 临时邮箱</p>",
+      `<h1>${subject}</h1>`,
+      "</header>",
+      "<dl>",
+      `<div><dt>收件邮箱</dt><dd>${escapeHtml(detail.mailboxEmailAddress)}</dd></div>`,
+      `<div><dt>发件人</dt><dd>${sender}</dd></div>`,
+      receivedAt ? `<div><dt>接收时间</dt><dd>${escapeHtml(receivedAt)}</dd></div>` : "",
+      `<div><dt>状态</dt><dd>${detail.isRead ? "已读" : "未读"}</dd></div>`,
+      "</dl>",
+      "<section><h2>正文</h2>",
+      `<pre>${escapeHtml(body)}</pre>`,
+      "</section>",
+      attachmentList,
+      "<footer>这个链接已经失效。再次查看请回到 Telegram 重新生成。</footer>",
+      "</main>",
+    ].filter(Boolean).join(""),
+  );
+}
+
+function renderBasePage(title: string, body: string) {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f5;
+      --panel: #ffffff;
+      --text: #1f2328;
+      --muted: #687076;
+      --border: #deded9;
+      --accent: #155e75;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 32px auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 18px 45px rgb(31 35 40 / 8%);
+    }
+    .notice {
+      width: min(560px, calc(100% - 32px));
+      margin-top: 15vh;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    h2 {
+      margin: 26px 0 10px;
+      font-size: 15px;
+    }
+    dl {
+      display: grid;
+      gap: 10px;
+      margin: 24px 0 0;
+      padding: 18px 0;
+      border-block: 1px solid var(--border);
+    }
+    dl div {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 12px;
+    }
+    dt {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #fafafa;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+    }
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    li + li {
+      margin-top: 8px;
+    }
+    small {
+      display: block;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 560px) {
+      main { padding: 20px; }
+      dl div { grid-template-columns: 1fr; gap: 2px; }
+    }
+  </style>
+</head>
+<body>${body}</body>
+</html>`;
 }
 
 async function readApiError(response: Response) {

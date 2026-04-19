@@ -167,4 +167,159 @@ describe("Shortly Telegram worker", () => {
     expect(payload.text).toContain("fallback.short.ly");
     expect(payload.text).toContain("fallback.mail.short.ly");
   });
+
+  it("deletes a mailbox by email address with /delete", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith("https://api.telegram.org/")) {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, result: { message_id: 2 } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const response = await worker.fetch(
+      new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: {
+            message_id: 1,
+            chat: { id: 123 },
+            text: "/delete Inbox@Example.com",
+          },
+        }),
+      }),
+      {
+        TELEGRAM_BOT_TOKEN: "token",
+        API_BASE_URL: "https://short.ly/v1",
+        TGBOT_KV: {
+          get: vi.fn().mockImplementation((key: string) => key.endsWith(":apikey") ? Promise.resolve("api-key") : Promise.resolve(null)),
+          put: vi.fn(),
+          delete: vi.fn(),
+        } as unknown as KVNamespace,
+      } as never,
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://short.ly/v1/emails/inbox%40example.com");
+    const [, apiInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(apiInit.method).toBe("DELETE");
+    expect(apiInit.headers).toEqual({ Authorization: "Bearer api-key" });
+    const [, telegramInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(String(telegramInit.body)).text).toContain("inbox@example.com");
+  });
+
+  it("creates one-time email detail links from inline callbacks", async () => {
+    const putMock = vi.fn();
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ok: true, result: { message_id: 3 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const response = await worker.fetch(
+      new Request("https://worker.example.com/webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          callback_query: {
+            id: "callback-1",
+            data: "email:detail:message_123",
+            message: {
+              message_id: 10,
+              chat: { id: 123 },
+            },
+          },
+        }),
+      }),
+      {
+        TELEGRAM_BOT_TOKEN: "token",
+        API_BASE_URL: "https://short.ly/v1",
+        TGBOT_KV: {
+          get: vi.fn().mockResolvedValue("api-key"),
+          put: putMock,
+          delete: vi.fn(),
+        } as unknown as KVNamespace,
+      } as never,
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(putMock).toHaveBeenCalledTimes(1);
+    const [storageKey, rawPayload, options] = putMock.mock.calls[0] as [string, string, { expirationTtl: number }];
+    expect(storageKey).toMatch(/^email-detail:[a-f0-9]{48}$/);
+    expect(JSON.parse(rawPayload)).toMatchObject({ chatId: 123, emailId: "message_123" });
+    expect(options.expirationTtl).toBe(600);
+
+    const [, telegramInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const telegramPayload = JSON.parse(String(telegramInit.body));
+    expect(telegramPayload.reply_markup.inline_keyboard[0][0].url).toMatch(/^https:\/\/worker\.example\.com\/email-detail\/[a-f0-9]{48}$/);
+  });
+
+  it("renders a one-time email detail page and consumes the token", async () => {
+    const detailToken = "a".repeat(48);
+    const deleteMock = vi.fn();
+    const getMock = vi.fn().mockImplementation((key: string) => {
+      if (key === `email-detail:${detailToken}`) {
+        return Promise.resolve(JSON.stringify({
+          chatId: 123,
+          emailId: "message_123",
+          createdAt: Date.now(),
+        }));
+      }
+
+      if (key === "user:123:apikey") {
+        return Promise.resolve("api-key");
+      }
+
+      return Promise.resolve(null);
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: {
+        id: "message_123",
+        mailboxEmailAddress: "inbox@example.com",
+        from: "sender@example.com",
+        fromName: "Alice",
+        subject: "Status update",
+        text: "Everything passed.",
+        receivedAt: "2026-04-19T01:00:00.000Z",
+        isRead: false,
+        attachments: [],
+      },
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const response = await worker.fetch(
+      new Request(`https://worker.example.com/email-detail/${detailToken}`),
+      {
+        TELEGRAM_BOT_TOKEN: "token",
+        API_BASE_URL: "https://short.ly/v1",
+        TGBOT_KV: {
+          get: getMock,
+          put: vi.fn(),
+          delete: deleteMock,
+        } as unknown as KVNamespace,
+      } as never,
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteMock).toHaveBeenCalledWith(`email-detail:${detailToken}`);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://short.ly/v1/emails/messages/message_123");
+    const html = await response.text();
+    expect(html).toContain("Status update");
+    expect(html).toContain("Everything passed.");
+    expect(html).toContain("这个链接已经失效");
+  });
 });

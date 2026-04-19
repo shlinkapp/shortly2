@@ -284,7 +284,7 @@ async function deliverInboundEmailToMailbox(
     createdAt: new Date(),
   })
   await insertEmailAttachments(messageRowId, context.attachments)
-  await notifyMailboxOwnerOnTelegram(mailbox, payload, context.attachments)
+  await notifyMailboxOwnerOnTelegram(mailbox, payload, context.attachments, messageRowId)
 
   return { data: { mailboxId: mailbox.id, messageId: messageRowId, duplicated: false, archived: false } }
 }
@@ -305,7 +305,8 @@ async function insertArchiveAttachments(archiveId: string, attachments: InboundA
 async function notifyMailboxOwnerOnTelegram(
   mailbox: { userId: string; emailAddress: string },
   payload: InboundEmailPayload,
-  attachments: InboundAttachment[]
+  attachments: InboundAttachment[],
+  messageRowId: string
 ) {
   try {
     const binding = await db
@@ -329,6 +330,7 @@ async function notifyMailboxOwnerOnTelegram(
 
     await sendInboundEmailTelegramNotification({
       chatId: binding.chatId,
+      messageId: messageRowId,
       emailAddress: mailbox.emailAddress,
       from: payload.from,
       fromName: payload.fromName,
@@ -704,17 +706,21 @@ export async function deleteTempMessage(userId: string, messageRowId: string) {
 }
 
 export async function deleteTempMailbox(userId: string, mailboxId: string) {
+  const parsedEmail = parseEmailAddress(mailboxId)
+  const mailboxSelector = parsedEmail
+    ? eq(tempMailbox.emailAddress, `${parsedEmail.localPart}@${parsedEmail.domain}`)
+    : eq(tempMailbox.id, mailboxId)
   const mailbox = await db
     .select({ id: tempMailbox.id })
     .from(tempMailbox)
-    .where(and(eq(tempMailbox.id, mailboxId), eq(tempMailbox.userId, userId)))
+    .where(and(mailboxSelector, eq(tempMailbox.userId, userId)))
     .get()
 
   if (!mailbox) {
     return false
   }
 
-  await db.delete(tempMailbox).where(eq(tempMailbox.id, mailboxId))
+  await db.delete(tempMailbox).where(eq(tempMailbox.id, mailbox.id))
   return true
 }
 

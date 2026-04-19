@@ -16,6 +16,7 @@ function truncate(value: string, maxLength: number) {
 
 type TelegramInboundNotification = {
   chatId: string
+  messageId?: string
   emailAddress: string
   from: string
   fromName?: string | null
@@ -23,6 +24,10 @@ type TelegramInboundNotification = {
   text?: string | null
   html?: string | null
   attachmentsCount?: number
+}
+
+type TelegramReplyMarkup = {
+  inline_keyboard: Array<Array<Record<string, string>>>
 }
 
 export function buildInboundEmailTelegramMessage(notification: TelegramInboundNotification) {
@@ -48,7 +53,23 @@ export function buildInboundEmailTelegramMessage(notification: TelegramInboundNo
   ].filter(Boolean).join("\n")
 }
 
-export async function sendTelegramMessage(chatId: string, text: string) {
+function buildInboundEmailReplyMarkup(messageId?: string): TelegramReplyMarkup | undefined {
+  if (!messageId?.trim()) {
+    return undefined
+  }
+
+  return {
+    inline_keyboard: [
+      [
+        { text: "已读", callback_data: `email:read:${messageId}` },
+        { text: "删除", callback_data: `email:delete:${messageId}` },
+      ],
+      [{ text: "查看邮件详情", callback_data: `email:detail:${messageId}` }],
+    ],
+  }
+}
+
+export async function sendTelegramMessage(chatId: string, text: string, replyMarkup?: TelegramReplyMarkup) {
   const token = getTelegramBotToken()
   if (!token || !chatId.trim()) {
     return false
@@ -64,6 +85,7 @@ export async function sendTelegramMessage(chatId: string, text: string) {
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     }),
   })
 
@@ -77,5 +99,5 @@ export async function sendTelegramMessage(chatId: string, text: string) {
 
 export async function sendInboundEmailTelegramNotification(notification: TelegramInboundNotification) {
   const text = buildInboundEmailTelegramMessage(notification)
-  return sendTelegramMessage(notification.chatId, text)
+  return sendTelegramMessage(notification.chatId, text, buildInboundEmailReplyMarkup(notification.messageId))
 }

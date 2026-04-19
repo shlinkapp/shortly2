@@ -109,6 +109,7 @@ describe("sendInboundEmailTelegramNotification", () => {
 
     await expect(sendInboundEmailTelegramNotification({
       chatId: "456",
+      messageId: "message_123",
       emailAddress: "mail@example.com",
       from: "sender@example.com",
       subject: "Status update",
@@ -122,5 +123,14 @@ describe("sendInboundEmailTelegramNotification", () => {
     expect(body.text).toContain("邮箱：<code>mail@example.com</code>")
     expect(body.text).toContain("主题：Status update")
     expect(body.text).toContain("附件：1 个")
+    expect(body.reply_markup).toEqual({
+      inline_keyboard: [
+        [
+          { text: "已读", callback_data: "email:read:message_123" },
+          { text: "删除", callback_data: "email:delete:message_123" },
+        ],
+        [{ text: "查看邮件详情", callback_data: "email:detail:message_123" }],
+      ],
+    })
   })
 })

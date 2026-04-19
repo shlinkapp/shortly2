@@ -276,6 +276,7 @@ describe("inbound email route", () => {
     expect(telegramNotifications).toEqual([
       {
         chatId: "chat_123",
+        messageId: body.messageId,
         emailAddress: "alpha@example.com",
         from: "sender@example.com",
         fromName: "Sender",
