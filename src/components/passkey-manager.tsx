@@ -5,7 +5,6 @@ import { authClient } from "@/lib/auth-client"
 import { createClientErrorReporter, getUserFacingErrorMessage } from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { KeyRound, Plus, Trash2, Loader2, MonitorSmartphone, Copy } from "lucide-react"
 
@@ -115,7 +114,7 @@ export function PasskeyManager() {
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+    <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] 2xl:grid-cols-[24rem_minmax(0,1fr)]">
       <div className="space-y-4 px-1">
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-primary" />
@@ -140,26 +139,26 @@ export function PasskeyManager() {
 
       <div className="space-y-6">
         {!supportsPasskey ? (
-          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
+          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
             当前浏览器或设备环境暂不支持通行密钥。
           </div>
         ) : isPending ? (
-          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
+          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed bg-muted/5 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
             正在载入密钥列表...
           </div>
         ) : !passkeys?.length ? (
-          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground text-center p-6">
+          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed bg-muted/5 p-6 text-center text-sm text-muted-foreground">
             你还没有添加任何通行密钥。为了账户安全，建议优先使用此登录方式。
           </div>
         ) : (
           <div className="grid gap-3">
             {passkeys.map((pk: { id: string; name?: string; backedUp: boolean; credentialID: string; createdAt: Date }) => (
-              <div key={pk.id} className="group relative rounded-2xl border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
+              <div key={pk.id} className="group relative rounded-xl border bg-card p-4 transition-all hover:border-primary/20 sm:p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/5 flex items-center justify-center shrink-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/5">
                         <MonitorSmartphone className="h-4 w-4 text-primary/70" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -198,7 +197,7 @@ export function PasskeyManager() {
                     size="icon"
                     onClick={() => handleDeletePasskey(pk.id)}
                     disabled={deleteId === pk.id}
-                    className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10"
+                    className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     {deleteId === pk.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

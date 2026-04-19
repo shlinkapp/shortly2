@@ -979,7 +979,7 @@ export function AdminClient({ user }: AdminClientProps) {
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-          <div className="flex h-14 items-center px-4 sm:px-6">
+          <div className="flex h-14 items-center px-[var(--page-gutter)]">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="-ml-1" />
               <div className="flex items-center gap-2">
@@ -990,8 +990,8 @@ export function AdminClient({ user }: AdminClientProps) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <Tabs value={activeTab} onValueChange={handleChangeTab} className="space-y-6">
+        <main className="mx-auto w-full max-w-[96rem] flex-1 px-[var(--page-gutter)] py-5 sm:py-6 lg:py-8">
+          <Tabs value={activeTab} onValueChange={handleChangeTab} className="space-y-5 sm:space-y-6">
             <TabsContent value="links" className="mt-0">
             <Card>
               <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1657,7 +1657,7 @@ export function AdminClient({ user }: AdminClientProps) {
           </TabsContent>
 
           <TabsContent value="settings" className="mt-0">
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
               <Card>
                 <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-base">站点设置</CardTitle>

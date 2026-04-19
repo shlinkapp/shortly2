@@ -55,28 +55,11 @@ export default async function HomePage({
 
   return (
     <main className="relative min-h-screen bg-background selection:bg-primary selection:text-primary-foreground">
-      {/* Noise Texture Overlay */}
-      <div className="pointer-events-none fixed inset-0 z-50 opacity-[0.03] mix-blend-overlay">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <filter id="noise">
-            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-          </filter>
-          <rect width="100%" height="100%" filter="url(#noise)" />
-        </svg>
-      </div>
-
-      {/* Background Decor */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-[10%] -left-[10%] h-[40%] w-[40%] rounded-full bg-primary/10 blur-[120px]" />
-        <div className="absolute top-[20%] -right-[5%] h-[30%] w-[30%] rounded-full bg-primary/5 blur-[100px]" />
-        <div className="absolute bottom-[10%] left-[20%] h-[20%] w-[20%] rounded-full bg-primary/5 blur-[80px]" />
-      </div>
-
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8 sm:py-12 lg:px-12">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[88rem] flex-col px-[var(--page-gutter)] py-5 sm:py-6 lg:py-8">
         {/* Navigation */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex items-center gap-2 text-xl font-bold tracking-tighter">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all group-hover:scale-105 group-hover:rotate-6">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform group-hover:scale-105">
               <Zap className="h-5 w-5 fill-current" />
             </div>
             <span className="hidden sm:inline-block text-2xl tracking-[-0.05em]">{siteName}</span>
@@ -97,7 +80,7 @@ export default async function HomePage({
                 <Button variant="ghost" size="sm" asChild className="hidden font-bold sm:flex">
                   <Link href="/login">登录</Link>
                 </Button>
-                <Button size="sm" asChild className="rounded-full h-10 px-6 font-bold shadow-lg shadow-primary/10 transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95">
+                <Button size="sm" asChild className="h-10 px-5 font-bold shadow-sm transition-transform hover:-translate-y-0.5 active:scale-95 sm:px-6">
                   <Link href="/register">免费开始</Link>
                 </Button>
               </>
@@ -106,25 +89,25 @@ export default async function HomePage({
         </header>
 
         {/* Hero Section */}
-        <section className="relative mt-24 flex flex-col items-center text-center lg:mt-32">
-          <div className="inline-flex animate-in fade-in slide-in-from-top-4 duration-1000 items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary backdrop-blur-md sm:text-xs">
+        <section className="relative mt-14 flex flex-col items-center text-center sm:mt-20 lg:mt-24">
+          <div className="inline-flex animate-in fade-in slide-in-from-top-4 duration-1000 items-center gap-2 rounded-lg border border-primary/10 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary sm:text-xs">
             <Sparkles className="h-4 w-4 fill-primary/20" />
             <span>智能链入 · 隐私直达</span>
           </div>
 
-          <h1 className="mt-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200 max-w-5xl text-balance text-[clamp(3rem,10vw,7rem)] font-[900] leading-[0.85] tracking-[-0.06em] lg:leading-[0.8]">
+          <h1 className="mt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200 max-w-5xl text-balance text-[clamp(2.75rem,9vw,6rem)] font-[900] leading-[0.92] tracking-[-0.055em] sm:mt-10 lg:leading-[0.88]">
             Redefine <br />
-            <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/40 bg-clip-text text-transparent">Efficiency.</span>
+            <span className="text-primary">Efficiency.</span>
           </h1>
 
-          <p className="mt-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 max-w-2xl text-pretty text-lg font-medium leading-relaxed text-muted-foreground sm:text-xl lg:text-2xl">
+          <p className="mt-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 max-w-[42rem] text-pretty text-base font-medium leading-relaxed text-muted-foreground sm:mt-8 sm:text-xl lg:text-2xl">
             提供简单、快速、极致隐私的链接压缩与临时邮箱工具。
             一处入口，全能管理。
           </p>
 
-          <div className="mt-12 flex animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="mt-8 flex w-full max-w-md animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 flex-col gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:items-center sm:justify-center">
             {user ? (
-              <Button size="lg" asChild className="h-16 rounded-full px-10 text-lg font-black shadow-2xl shadow-primary/20 transition-all hover:shadow-primary/30 hover:-translate-y-1.5 active:scale-95">
+              <Button size="lg" asChild className="h-12 px-7 text-base font-black shadow-lg shadow-primary/10 transition-transform hover:-translate-y-1 active:scale-95 sm:h-14 sm:px-9 sm:text-lg">
                 <Link href="/dashboard">
                   进入系统控制台
                   <ArrowRight className="ml-2 h-6 w-6" />
@@ -132,13 +115,13 @@ export default async function HomePage({
               </Button>
             ) : (
               <>
-                <Button size="lg" asChild className="h-16 rounded-full px-10 text-lg font-black shadow-2xl shadow-primary/20 transition-all hover:shadow-primary/30 hover:-translate-y-1.5 active:scale-95">
+                <Button size="lg" asChild className="h-12 px-7 text-base font-black shadow-lg shadow-primary/10 transition-transform hover:-translate-y-1 active:scale-95 sm:h-14 sm:px-9 sm:text-lg">
                   <Link href="/register">
                     立即免费加入
                     <ArrowRight className="ml-2 h-6 w-6" />
                   </Link>
                 </Button>
-                <Button variant="outline" size="lg" asChild className="h-16 rounded-full px-10 text-lg font-black border-2 bg-background/50 backdrop-blur-md transition-all hover:bg-accent hover:-translate-y-1 active:scale-95">
+                <Button variant="outline" size="lg" asChild className="h-12 border px-7 text-base font-black transition-transform hover:-translate-y-1 active:scale-95 sm:h-14 sm:px-9 sm:text-lg">
                   <Link href="/login">了解产品特性</Link>
                 </Button>
               </>
@@ -147,7 +130,7 @@ export default async function HomePage({
         </section>
 
         {/* Trust Section */}
-        <section className="mt-24 animate-in fade-in zoom-in-95 duration-1000 delay-700 flex flex-wrap items-center justify-center gap-8 opacity-40 grayscale transition-all hover:opacity-100 hover:grayscale-0 sm:gap-16">
+        <section className="mt-14 animate-in fade-in zoom-in-95 duration-1000 delay-700 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground transition-colors hover:text-foreground sm:mt-16 sm:gap-x-10">
           <div className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5" /> 隐私保护</div>
           <div className="flex items-center gap-2 font-bold"><Globe className="h-5 w-5" /> 全球分发</div>
           <div className="flex items-center gap-2 font-bold"><BarChart3 className="h-5 w-5" /> 精准数据分析</div>
@@ -155,26 +138,26 @@ export default async function HomePage({
         </section>
 
         {/* Features Section - Asymmetric Bento-style Layout */}
-        <section className="mt-32 grid gap-8 lg:mt-48 lg:grid-cols-12 lg:grid-rows-2">
+        <section className="mt-16 grid gap-5 sm:mt-24 sm:gap-6 lg:mt-28 lg:grid-cols-12">
           {/* Main Feature: Short Link */}
-          <article className="group relative col-span-12 flex flex-col overflow-hidden rounded-[3rem] border border-primary/5 bg-card/40 p-10 backdrop-blur-sm transition-all hover:bg-card hover:shadow-2xl hover:shadow-primary/5 sm:p-14 lg:col-span-12">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <article className="group relative col-span-12 flex flex-col overflow-hidden rounded-xl border bg-card/70 p-5 transition-shadow hover:shadow-sm sm:p-8 lg:p-10">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
               <div className="max-w-xl">
-                <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all group-hover:rotate-6 group-hover:scale-110">
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm sm:h-14 sm:w-14">
                   <Link2 className="h-8 w-8" />
                 </div>
-                <h2 className="text-4xl font-black tracking-tight sm:text-5xl">智能短链接</h2>
-                <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
+                <h2 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">智能短链接</h2>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg lg:text-xl">
                   不仅仅是缩短链接。支持自定义后缀、可视化数据分析、点击限制及过期自动作废，让您的每一条分享都尽在掌控。
                 </p>
-                <div className="mt-8 flex items-center gap-3">
-                  <span className="rounded-full bg-primary/10 px-4 py-1.5 text-xs font-black text-primary uppercase tracking-tighter shadow-sm">自定义后缀</span>
-                  <span className="rounded-full bg-primary/10 px-4 py-1.5 text-xs font-black text-primary uppercase tracking-tighter shadow-sm">数据统计</span>
-                  <span className="rounded-full bg-primary/10 px-4 py-1.5 text-xs font-black text-primary uppercase tracking-tighter shadow-sm">自动过期</span>
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-black text-primary uppercase tracking-tighter">自定义后缀</span>
+                  <span className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-black text-primary uppercase tracking-tighter">数据统计</span>
+                  <span className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-black text-primary uppercase tracking-tighter">自动过期</span>
                 </div>
               </div>
-              <div className="mt-12 lg:mt-0 flex-shrink-0">
-                <div className="relative aspect-square w-full sm:w-80 overflow-hidden rounded-[2rem] border bg-background/50 p-6 shadow-inner ring-8 ring-muted/5 group-hover:ring-primary/5 transition-all">
+              <div className="w-full flex-shrink-0 lg:max-w-sm">
+                <div className="relative aspect-square w-full overflow-hidden rounded-lg border bg-background/50 p-5 shadow-inner sm:p-6">
                    <div className="space-y-4">
                       <div className="h-2 w-1/2 rounded bg-muted animate-pulse" />
                       <div className="h-8 w-full rounded-lg bg-primary/5 border border-dashed border-primary/20 flex items-center px-4 font-mono text-xs text-primary">Shortly.link/XyZ7_</div>
@@ -189,31 +172,31 @@ export default async function HomePage({
                 </div>
               </div>
             </div>
-            <div className="mt-10 flex items-center gap-2 text-sm font-black text-primary opacity-0 -translate-x-4 transition-all group-hover:opacity-100 group-hover:translate-x-0">
+            <div className="mt-8 flex items-center gap-2 text-sm font-black text-primary opacity-100 sm:opacity-0 sm:-translate-x-4 sm:transition-all sm:group-hover:translate-x-0 sm:group-hover:opacity-100">
               <span className="uppercase tracking-widest">立即创建您的短链接</span>
               <ChevronRight className="h-5 w-5" />
             </div>
           </article>
 
           {/* Sub Feature: Temp Mail */}
-          <article className="group relative col-span-12 flex flex-col overflow-hidden rounded-[3rem] border border-primary/5 bg-card/40 p-10 backdrop-blur-sm transition-all hover:bg-card hover:shadow-2xl hover:shadow-primary/5 sm:p-14 lg:col-span-12">
-            <div className="flex flex-col lg:flex-row-reverse lg:items-center lg:justify-between gap-12">
+          <article className="group relative col-span-12 flex flex-col overflow-hidden rounded-xl border bg-card/70 p-5 transition-shadow hover:shadow-sm sm:p-8 lg:p-10">
+            <div className="flex flex-col gap-8 lg:flex-row-reverse lg:items-center lg:justify-between lg:gap-12">
               <div className="max-w-xl">
-                 <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-lg transition-all group-hover:-rotate-6 group-hover:scale-110">
+                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-sm sm:h-14 sm:w-14">
                   <Mail className="h-8 w-8" />
                 </div>
-                <h2 className="text-4xl font-black tracking-tight sm:text-5xl">隐私临时邮箱</h2>
-                <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
+                <h2 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">隐私临时邮箱</h2>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg lg:text-xl">
                   彻底告别垃圾邮件。快速生成随机邮箱地址，实时在线收信，用于注册测试或临时验证，完美保护您的主邮箱隐私。
                 </p>
-                <div className="mt-8 flex items-center gap-3">
-                  <span className="rounded-full bg-accent/20 px-4 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter shadow-sm">一键生成</span>
-                  <span className="rounded-full bg-accent/20 px-4 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter shadow-sm">实时查收</span>
-                  <span className="rounded-full bg-accent/20 px-4 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter shadow-sm">过期自毁</span>
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-accent/20 px-3 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter">一键生成</span>
+                  <span className="rounded-md bg-accent/20 px-3 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter">实时查收</span>
+                  <span className="rounded-md bg-accent/20 px-3 py-1.5 text-xs font-black text-accent-foreground uppercase tracking-tighter">过期自毁</span>
                 </div>
               </div>
-              <div className="flex-shrink-0">
-                 <div className="relative aspect-video w-full sm:w-96 overflow-hidden rounded-[2rem] border bg-background/50 p-6 shadow-inner ring-8 ring-muted/5 group-hover:ring-accent/10 transition-all">
+              <div className="w-full flex-shrink-0 lg:max-w-md">
+                 <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-background/50 p-5 shadow-inner sm:p-6">
                     <div className="space-y-4">
                        <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-accent/20" />
@@ -228,7 +211,7 @@ export default async function HomePage({
                  </div>
               </div>
             </div>
-            <div className="mt-10 flex items-center justify-end gap-2 text-sm font-black text-accent-foreground opacity-0 translate-x-4 transition-all group-hover:opacity-100 group-hover:translate-x-0">
+            <div className="mt-8 flex items-center justify-start gap-2 text-sm font-black text-accent-foreground opacity-100 sm:justify-end sm:translate-x-4 sm:opacity-0 sm:transition-all sm:group-hover:translate-x-0 sm:group-hover:opacity-100">
               <span className="uppercase tracking-widest text-primary">立即获取临时邮箱</span>
               <ChevronRight className="h-5 w-5 text-primary" />
             </div>
@@ -236,11 +219,11 @@ export default async function HomePage({
         </section>
 
         {/* Footer */}
-        <footer className="mt-32 dark border-t py-16 lg:mt-48">
-          <div className="flex flex-col gap-12 sm:flex-row sm:items-start sm:justify-between">
+        <footer className="mt-16 border-t py-10 sm:mt-24 sm:py-12 lg:mt-28">
+          <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-6">
               <div className="flex items-center gap-3 text-2xl font-black tracking-tighter uppercase">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <Zap className="h-6 w-6 fill-current" />
                 </div>
                 <span>{siteName}</span>
@@ -250,7 +233,7 @@ export default async function HomePage({
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-x-16 gap-y-12">
+            <div className="grid grid-cols-2 gap-x-10 gap-y-10 sm:gap-x-16">
                <div className="space-y-4">
                   <h4 className="text-xs font-black uppercase tracking-widest text-foreground">项目</h4>
                   <nav className="flex flex-col gap-3 text-sm font-bold text-muted-foreground">
@@ -269,7 +252,7 @@ export default async function HomePage({
                </div>
             </div>
           </div>
-          <div className="mt-32 flex flex-col gap-8 border-t border-border/10 pt-12 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-12 flex flex-col gap-6 border-t border-border/60 pt-8 sm:flex-row sm:items-center sm:justify-between">
              <div className="text-[xs] font-bold text-muted-foreground opacity-40">
                 © {new Date().getFullYear()} {siteName}. All rights reserved globally.
              </div>

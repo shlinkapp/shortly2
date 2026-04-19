@@ -20,7 +20,7 @@ export default async function LoginPage() {
   );
 
   return (
-    <main className="flex min-h-screen bg-background">
+    <main className="flex min-h-svh bg-background">
       {/* Brand Visual Side */}
       <section className="relative hidden w-1/2 overflow-hidden lg:block">
         <Image
@@ -48,10 +48,10 @@ export default async function LoginPage() {
       </section>
 
       {/* Form Side */}
-      <section className="flex w-full items-center justify-center px-6 lg:w-1/2 lg:px-12">
+      <section className="flex w-full items-center justify-center px-[var(--page-gutter)] py-8 lg:w-1/2 lg:px-12">
         <div className="w-full max-w-sm space-y-8">
           <div className="space-y-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/5 text-primary ring-1 ring-primary/10 lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/5 text-primary ring-1 ring-primary/10 lg:hidden">
               <Zap className="h-6 w-6 fill-current" />
             </div>
             <div className="space-y-2">

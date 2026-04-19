@@ -18,12 +18,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Copy, Download, KeyRound, Trash2 } from "lucide-react"
 
 interface ApiKeyRecord {
@@ -55,26 +49,6 @@ function maskPrefix(prefix: string): string {
 }
 
 const apiManagementReporter = createClientErrorReporter("api_management")
-
-function getDocsItemClassName() {
-  return "space-y-2"
-}
-
-function getDocsActionsClassName() {
-  return "flex flex-wrap gap-2"
-}
-
-function getDocsMetaValueClassName() {
-  return "break-all"
-}
-
-function getCodeBlockClassName() {
-  return "overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs leading-6 whitespace-pre-wrap break-all"
-}
-
-function getSharexPreviewClassName() {
-  return "max-h-80 overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-6 whitespace-pre-wrap break-all"
-}
 
 export function ApiManagementPanel() {
   const [loading, setLoading] = useState(true)
@@ -156,9 +130,7 @@ export function ApiManagementPanel() {
   }, [apiBaseUrl, sharexApiKey])
 
   const shortenEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/shorten`
-  const domainsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/domains`
   const emailsEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/emails`
-  const emailMessageEndpoint = `${apiBaseUrl || "https://your-domain.com"}/v1/emails/messages`
   const normalizedTelegramBotUsername = telegramBotUsername.replace(/^@+/, "")
   const telegramBotHandle = normalizedTelegramBotUsername ? `@${normalizedTelegramBotUsername}` : ""
   const telegramBindCommand = `/setkey ${latestPlainKey || "YOUR_API_KEY"}`
@@ -187,9 +159,6 @@ export function ApiManagementPanel() {
   }'`
   const listMailboxMessagesCommand = `curl '${emailsEndpoint}/MAILBOX_ID/messages?page=1&limit=20' \\
   -H 'Authorization: Bearer YOUR_API_KEY'`
-  const markMessageReadCommand = `curl -X POST '${emailMessageEndpoint}/MESSAGE_ID/read' \\
-  -H 'Authorization: Bearer YOUR_API_KEY'`
-
   async function handleCreateKey() {
     setCreating(true)
     try {
@@ -266,18 +235,16 @@ export function ApiManagementPanel() {
   }
 
   return (
-    <Tabs defaultValue="keys" className="space-y-8">
-      <div className="flex items-center justify-between px-1">
-        <TabsList className="h-10 items-center justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger value="keys" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">API Key</TabsTrigger>
-          <TabsTrigger value="docs" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">接口示例</TabsTrigger>
-          <TabsTrigger value="sharex" className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-6 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">ShareX</TabsTrigger>
-        </TabsList>
-      </div>
+    <Tabs defaultValue="keys" className="space-y-6 sm:space-y-8">
+      <TabsList>
+        <TabsTrigger value="keys">API Key</TabsTrigger>
+        <TabsTrigger value="docs">接口示例</TabsTrigger>
+        <TabsTrigger value="sharex">ShareX</TabsTrigger>
+      </TabsList>
 
-      <TabsContent value="keys" className="mt-6 space-y-12">
+      <TabsContent value="keys" className="mt-4 space-y-8 sm:mt-6 sm:space-y-10">
         {/* Create Key Section */}
-        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] 2xl:grid-cols-[24rem_minmax(0,1fr)]">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <KeyRound className="h-4 w-4 text-primary" />
@@ -289,7 +256,7 @@ export function ApiManagementPanel() {
           </div>
 
           <div className="space-y-8">
-            <section className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+            <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
               <h3 className="text-sm font-semibold text-foreground/80 lowercase tracking-wider">NEW KEY</h3>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
@@ -305,7 +272,7 @@ export function ApiManagementPanel() {
               </div>
               
               {latestPlainKey && (
-                <div className="mt-4 space-y-3 rounded-xl border-2 border-primary/20 bg-primary/[0.02] p-4">
+                <div className="mt-4 space-y-3 rounded-lg border border-primary/20 bg-primary/[0.02] p-4">
                    <div className="flex items-center justify-between gap-4">
                      <p className="text-xs font-bold text-primary uppercase tracking-widest">请立即复制</p>
                      <Badge variant="outline" className="bg-primary/5 text-[10px] font-mono border-primary/10">Secret</Badge>
@@ -326,7 +293,7 @@ export function ApiManagementPanel() {
             </section>
 
             {telegramBotHandle && (
-              <section className="rounded-2xl border border-dashed bg-muted/5 p-6 space-y-4">
+              <section className="space-y-4 rounded-xl border border-dashed bg-muted/5 p-4 sm:p-5">
                 <div className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                   <h3 className="text-sm font-semibold">Telegram 联动</h3>
@@ -358,13 +325,13 @@ export function ApiManagementPanel() {
                </div>
 
                {loading ? (
-                  <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">正在同步密钥...</div>
+                  <div className="flex h-32 items-center justify-center rounded-xl border border-dashed bg-muted/5 text-sm text-muted-foreground">正在同步密钥...</div>
                 ) : keys.length === 0 ? (
-                  <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed bg-muted/5 text-sm text-muted-foreground">目前没有活跃的密钥。</div>
+                  <div className="flex h-32 items-center justify-center rounded-xl border border-dashed bg-muted/5 text-sm text-muted-foreground">目前没有活跃的密钥。</div>
                 ) : (
                   <div className="grid gap-3">
                     {keys.map((item) => (
-                      <div key={item.id} className="group relative rounded-2xl border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
+                      <div key={item.id} className="group relative rounded-xl border bg-card p-4 transition-all hover:border-primary/20 sm:p-5">
                         <div className="flex items-start justify-between gap-4">
                            <div className="min-w-0 space-y-3">
                              <div>
@@ -373,7 +340,7 @@ export function ApiManagementPanel() {
                                  {maskPrefix(item.keyPrefix)}
                                </p>
                              </div>
-                             <div className="flex items-center gap-4 text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
                                <span>LAST USED: {item.lastUsedAt ? formatDate(item.lastUsedAt) : "NEVER"}</span>
                                <span>CREATED: {formatDate(item.createdAt)}</span>
                              </div>
@@ -381,7 +348,7 @@ export function ApiManagementPanel() {
                            <Button
                               variant="ghost"
                               size="icon-sm"
-                              className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10"
+                              className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 sm:opacity-0 sm:group-hover:opacity-100"
                               onClick={() => handleDeleteKey(item.id)}
                               disabled={deletingKeyId === item.id}
                             >
@@ -397,13 +364,13 @@ export function ApiManagementPanel() {
         </div>
       </TabsContent>
 
-      <TabsContent value="docs" className="mt-6 space-y-10">
-        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+      <TabsContent value="docs" className="mt-4 space-y-8 sm:mt-6 sm:space-y-10">
+        <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] 2xl:grid-cols-[24rem_minmax(0,1fr)]">
           <div className="space-y-4 px-1">
             <h2 className="text-xl font-bold tracking-tight">API 端点示例</h2>
             <div className="space-y-1.5">
                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Base Domains</p>
-               <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
+               <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
                  <div>
                    <p className="text-[10px] font-bold text-muted-foreground mb-1 uppercase">Emails</p>
                    <p className="font-mono text-xs break-all text-primary">{emailDomains.join(", ") || "-"}</p>
@@ -435,7 +402,7 @@ export function ApiManagementPanel() {
                 </div>
                 <div className="relative group">
                   <div className="absolute top-0 right-0 h-full w-4 bg-gradient-to-l from-background pointer-events-none" />
-                  <pre className="overflow-x-auto rounded-2xl border bg-black/[0.02] p-5 font-mono text-[11px] leading-relaxed text-foreground/80 break-all whitespace-pre-wrap">
+                  <pre className="overflow-x-auto rounded-xl border bg-black/[0.02] p-4 font-mono text-[11px] leading-relaxed text-foreground/80 break-all whitespace-pre-wrap sm:p-5">
                     {example.cmd}
                   </pre>
                 </div>
@@ -445,8 +412,8 @@ export function ApiManagementPanel() {
         </div>
       </TabsContent>
 
-      <TabsContent value="sharex" className="mt-6">
-        <div className="grid gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+      <TabsContent value="sharex" className="mt-4 sm:mt-6">
+        <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] 2xl:grid-cols-[24rem_minmax(0,1fr)]">
           <div className="space-y-4 px-1">
             <h2 className="text-xl font-bold tracking-tight">ShareX 集成</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -460,7 +427,7 @@ export function ApiManagementPanel() {
                 className="h-10 border-primary/20 bg-primary/5 placeholder:text-primary/40"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               <Button onClick={handleDownloadShareXConfig} className="h-10 font-bold">
                 <Download className="mr-2 h-4 w-4" /> 下载配置
               </Button>
@@ -474,7 +441,7 @@ export function ApiManagementPanel() {
              <div className="flex items-center justify-between px-1">
                <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Configuration Preview</h3>
              </div>
-             <pre className="overflow-auto rounded-2xl border bg-black/[0.02] p-6 font-mono text-[10px] leading-normal text-muted-foreground/80 max-h-[30rem]">
+             <pre className="max-h-[30rem] overflow-auto rounded-xl border bg-black/[0.02] p-4 font-mono text-[10px] leading-normal text-muted-foreground/80 sm:p-6">
                 {sharexConfig}
              </pre>
           </div>

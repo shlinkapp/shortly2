@@ -267,7 +267,7 @@ export function AuthForm({
                 <Label htmlFor="auth-otp" className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
                   请输入验证码
                 </Label>
-                <div className="rounded-2xl border-2 border-dashed border-primary/20 bg-primary/5 p-4 text-center">
+                <div className="rounded-lg border border-dashed border-primary/20 bg-primary/5 p-4 text-center">
                   <p className="text-sm font-medium text-muted-foreground mb-1">已发送至</p>
                   <p className="break-all font-bold text-primary">{email}</p>
                 </div>

@@ -8,7 +8,6 @@ import {
   readOptionalJson,
 } from "@/lib/client-feedback"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SHORT_LINK_EXPIRES_IN_OPTIONS, type ShortLinkExpiresIn } from "@/lib/short-link-expiration"
@@ -262,6 +261,189 @@ export function ShortLinkCreator({
   const showCreateActions = !result && (!isHomepageMode || showOptions)
   const showNoDomainWarning = user && !domainsLoading && shortDomains.length < 1
 
+  if (!isHomepageMode) {
+    return (
+      <section className="overflow-hidden rounded-xl border bg-card">
+        <div className="grid gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="space-y-5">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Shorten</p>
+              <h2 className="text-xl font-semibold tracking-tight">创建一条可控短链</h2>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                先粘贴目标地址，再按需设置域名、后缀、点击上限和有效期。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="short-link-url" className="text-sm font-medium">
+                目标链接
+              </label>
+              <Input
+                id="short-link-url"
+                type="url"
+                placeholder="https://example.com/very/long/path"
+                value={url}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleShorten()
+                }}
+                className="h-12 text-base"
+                autoFocus
+              />
+            </div>
+
+            {user && (
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="short-link-domain" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    域名
+                  </label>
+                  <Select value={selectedDomain} onValueChange={setSelectedDomain} disabled={domainsLoading || shortDomains.length < 1}>
+                    <SelectTrigger id="short-link-domain" aria-label="短链域名" className="h-10 w-full bg-background">
+                      <SelectValue placeholder={domainsLoading ? "加载中..." : "选择域名"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shortDomains.map((domain) => (
+                        <SelectItem key={domain.host} value={domain.host}>
+                          {domain.host}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="short-link-custom-slug" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    后缀
+                  </label>
+                  <Input
+                    id="short-link-custom-slug"
+                    placeholder="留空自动生成"
+                    value={customSlug}
+                    onChange={(e) => setCustomSlug(e.target.value)}
+                    className="h-10 bg-background"
+                    maxLength={50}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="short-link-max-clicks" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    点击上限
+                  </label>
+                  <Input
+                    id="short-link-max-clicks"
+                    type="number"
+                    placeholder="不限"
+                    value={maxClicks}
+                    onChange={(e) => setMaxClicks(e.target.value)}
+                    className="h-10 bg-background"
+                    min="1"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="short-link-expires-in" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    有效期
+                  </label>
+                  <Select value={expiresIn} onValueChange={(value) => setExpiresIn(value as ShortLinkExpiresIn | "none")}>
+                    <SelectTrigger id="short-link-expires-in" aria-label="有效期" className="h-10 w-full bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">长期有效</SelectItem>
+                      {SHORT_LINK_EXPIRES_IN_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {customSlugTooShort && (
+              <p className="text-xs text-destructive">当前域名要求后缀至少 {selectedMinSlugLength} 个字符。</p>
+            )}
+
+            {showNoDomainWarning && (
+              <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                当前没有可用的短链域名，请先让管理员启用短链域名后再创建。
+              </div>
+            )}
+          </div>
+
+          <aside className="flex flex-col justify-between gap-5 rounded-lg border bg-muted/20 p-4">
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Preview</p>
+                <p className="mt-2 break-all font-mono text-sm text-foreground">
+                  {selectedDomain || shortDomains[0]?.host || "short.domain"}/{normalizedCustomSlug || "auto"}
+                </p>
+              </div>
+              <div className="grid gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-3">
+                  <span>点击限制</span>
+                  <span className="font-medium text-foreground">{maxClicks || "不限"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>有效期</span>
+                  <span className="font-medium text-foreground">{expiresIn === "none" ? "长期" : expiresIn}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>后缀要求</span>
+                  <span className="font-medium text-foreground">≥ {selectedMinSlugLength}</span>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={handleShorten} disabled={isPending || !canSubmit} className="h-11 w-full">
+              <Scissors className="h-4 w-4" />
+              {isPending ? "创建中..." : submitLabel}
+            </Button>
+          </aside>
+        </div>
+
+        {result && (
+          <div className="border-t bg-background/60 p-4 sm:p-5">
+            <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Created</p>
+                <a
+                  href={result.shortUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block break-all text-sm font-semibold text-primary hover:underline"
+                >
+                  {result.shortUrl}
+                </a>
+                <p className="break-all text-xs text-muted-foreground">
+                  {result.domain}/{result.slug}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+                  <Copy className="h-4 w-4" />
+                  复制
+                </Button>
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <a href={result.shortUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    打开
+                  </a>
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
+                  <X className="h-4 w-4" />
+                  新建
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    )
+  }
+
   const content = (
     <div className={isHomepageMode ? "mx-auto w-full max-w-3xl space-y-4" : "flex w-full max-w-none flex-col gap-4"}>
       {isHomepageMode && (
@@ -321,7 +503,7 @@ export function ShortLinkCreator({
 
       {shouldShowOptionsPanel && (
         <div className={isHomepageMode ? "animate-in fade-in slide-in-from-top-1 flex flex-col gap-4 border-t pt-4 duration-200" : "animate-in fade-in slide-in-from-top-1 flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 duration-200"}>
-          <div className={isHomepageMode ? "grid gap-4 md:grid-cols-2" : "grid gap-3 md:grid-cols-2"}>
+          <div className={isHomepageMode ? "grid gap-4 sm:grid-cols-2" : "grid gap-3"}>
             <div className="space-y-1.5">
               <label
                 htmlFor="short-link-domain"
@@ -364,7 +546,7 @@ export function ShortLinkCreator({
             </div>
           </div>
 
-          <div className={isHomepageMode ? "grid gap-4 md:grid-cols-2" : "grid gap-3 md:grid-cols-2"}>
+          <div className={isHomepageMode ? "grid gap-4 sm:grid-cols-2" : "grid gap-3"}>
             <div className="space-y-1.5">
               <label
                 htmlFor="short-link-max-clicks"
