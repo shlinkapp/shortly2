@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { generateRandomEmailPrefix } from "./random-email-prefix";
 
 type Bindings = {
   TELEGRAM_BOT_TOKEN: string;
@@ -656,7 +657,7 @@ async function createMailbox(
 ) {
   const token = c.env.TELEGRAM_BOT_TOKEN;
   const domains = await resolveDomains(c.env);
-  const prefix = normalizeEmailPrefix(args[0]) || generateRandomLowercaseLetters(6);
+  const prefix = normalizeEmailPrefix(args[0]) || generateRandomEmailPrefix();
   const domain = normalizeDomain(args[1]) || domains.email[0];
   const emailAddress = `${prefix}@${domain}`;
 
@@ -1172,15 +1173,6 @@ function generateRandomToken(byteLength: number) {
 
 function generateRandomSlug(length: number) {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "";
-  for (let index = 0; index < length; index += 1) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-function generateRandomLowercaseLetters(length: number) {
-  const chars = "abcdefghijklmnopqrstuvwxyz";
   let result = "";
   for (let index = 0; index < length; index += 1) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));

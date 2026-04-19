@@ -24,6 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/utils"
 import { useMediaQuery } from "@/lib/use-media-query"
+import { generateRandomEmailPrefix } from "@/lib/random-email-prefix"
 import { Copy, MailPlus, RefreshCw, Trash2 } from "lucide-react"
 
 interface MailboxRecord {
@@ -119,66 +120,6 @@ interface DomainRecord {
 interface DomainsResponse {
   emailDomains: DomainRecord[]
   shortDomains: DomainRecord[]
-}
-
-const RANDOM_PREFIX_WORDS = [
-  "amber",
-  "apple",
-  "ash",
-  "bird",
-  "blue",
-  "brisk",
-  "brook",
-  "cloud",
-  "copper",
-  "dawn",
-  "delta",
-  "ember",
-  "fern",
-  "field",
-  "flint",
-  "forest",
-  "glow",
-  "gold",
-  "grain",
-  "harbor",
-  "honey",
-  "jade",
-  "lake",
-  "leaf",
-  "lily",
-  "meadow",
-  "mint",
-  "mist",
-  "moon",
-  "nova",
-  "ocean",
-  "olive",
-  "opal",
-  "pearl",
-  "pine",
-  "plum",
-  "river",
-  "rose",
-  "sage",
-  "shadow",
-  "sky",
-  "snow",
-  "solar",
-  "stone",
-  "storm",
-  "sun",
-  "swift",
-  "vale",
-  "wave",
-  "willow",
-]
-
-function getRandomPrefix() {
-  return Array.from({ length: 3 }, () => {
-    const index = Math.floor(Math.random() * RANDOM_PREFIX_WORDS.length)
-    return RANDOM_PREFIX_WORDS[index]
-  }).join("-")
 }
 
 function getNextMailboxSelection(rows: MailboxRecord[], currentMailboxId: string | null) {
@@ -1322,7 +1263,7 @@ export function TempEmailManager() {
   }, [fetchMailboxes, fetchMessages, loadingMailboxes, loadingMessages, messageDialogOpen, selectedMailboxId])
 
   function handleGenerateRandomPrefix() {
-    setMailboxInput(getRandomPrefix())
+    setMailboxInput(generateRandomEmailPrefix())
   }
 
   async function handleCreateMailbox() {
