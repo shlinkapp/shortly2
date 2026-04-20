@@ -390,4 +390,63 @@ describe("Shortly Telegram worker", () => {
     expect(html).toContain("Everything passed.");
     expect(html).toContain("这个链接已经失效");
   });
+
+  it("renders HTML email bodies in the one-time detail page", async () => {
+    const detailToken = "b".repeat(48);
+    const deleteMock = vi.fn();
+    const getMock = vi.fn().mockImplementation((key: string) => {
+      if (key === `email-detail:${detailToken}`) {
+        return Promise.resolve(JSON.stringify({
+          chatId: 123,
+          emailId: "message_html",
+          createdAt: Date.now(),
+        }));
+      }
+
+      if (key === "user:123:apikey") {
+        return Promise.resolve("api-key");
+      }
+
+      return Promise.resolve(null);
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: {
+        id: "message_html",
+        mailboxEmailAddress: "inbox@example.com",
+        from: "sender@example.com",
+        subject: "HTML update",
+        text: "",
+        html: "<article><h2>Rendered HTML</h2><p><strong>Everything passed.</strong></p></article>",
+        receivedAt: "2026-04-19T01:00:00.000Z",
+        isRead: false,
+        attachments: [],
+      },
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const response = await worker.fetch(
+      new Request(`https://worker.example.com/email-detail/${detailToken}`),
+      {
+        TELEGRAM_BOT_TOKEN: "token",
+        API_BASE_URL: "https://short.ly/v1",
+        TGBOT_KV: {
+          get: getMock,
+          put: vi.fn(),
+          delete: deleteMock,
+        } as unknown as KVNamespace,
+      } as never,
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("HTML 正文");
+    expect(html).toContain("<iframe class=\"email-frame\"");
+    expect(html).toContain("sandbox=\"allow-popups allow-popups-to-escape-sandbox\"");
+    expect(html).toContain("&lt;strong&gt;Everything passed.&lt;/strong&gt;");
+    expect(html).toContain("查看 HTML 源码");
+  });
 });

@@ -1210,6 +1210,10 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+function escapeHtmlAttribute(value: string) {
+  return escapeHtml(value).replaceAll("'", "&#39;");
+}
+
 function stripHtml(value: string) {
   return value
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -1262,8 +1266,27 @@ function renderEmailDetailPage(detail: EmailMessageDetail) {
     : escapeHtml(detail.from || "(未知发件人)");
   const subject = escapeHtml(detail.subject?.trim() || "(无主题)");
   const receivedAt = formatDetailDate(detail.receivedAt);
-  const body = detail.text?.trim() || stripHtml(detail.html || "") || "(无正文)";
+  const textBody = detail.text?.trim() || "";
+  const htmlBody = detail.html?.trim() || "";
+  const fallbackBody = textBody || stripHtml(htmlBody) || "(无正文)";
   const attachments = detail.attachments || [];
+  const bodySection = htmlBody
+    ? [
+      "<section><h2>HTML 正文</h2>",
+      `<iframe class="email-frame" title="HTML 邮件正文" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" srcdoc="${escapeHtmlAttribute(htmlBody)}"></iframe>`,
+      textBody
+        ? `<details><summary>查看纯文本正文</summary><pre>${escapeHtml(textBody)}</pre></details>`
+        : `<details><summary>查看文本预览</summary><pre>${escapeHtml(fallbackBody)}</pre></details>`,
+      "<details><summary>查看 HTML 源码</summary>",
+      `<pre>${escapeHtml(htmlBody)}</pre>`,
+      "</details>",
+      "</section>",
+    ].join("")
+    : [
+      "<section><h2>正文</h2>",
+      `<pre>${escapeHtml(fallbackBody)}</pre>`,
+      "</section>",
+    ].join("");
   const attachmentList = attachments.length
     ? `<section><h2>附件</h2><ul>${attachments.map((attachment) => {
       const label = attachment.filename?.trim() || "未命名附件";
@@ -1286,9 +1309,7 @@ function renderEmailDetailPage(detail: EmailMessageDetail) {
       receivedAt ? `<div><dt>接收时间</dt><dd>${escapeHtml(receivedAt)}</dd></div>` : "",
       `<div><dt>状态</dt><dd>${detail.isRead ? "已读" : "未读"}</dd></div>`,
       "</dl>",
-      "<section><h2>正文</h2>",
-      `<pre>${escapeHtml(body)}</pre>`,
-      "</section>",
+      bodySection,
       attachmentList,
       "<footer>这个链接已经失效。再次查看请回到 Telegram 重新生成。</footer>",
       "</main>",
@@ -1380,6 +1401,33 @@ function renderBasePage(title: string, body: string) {
       border: 1px solid var(--border);
       border-radius: 8px;
       font: inherit;
+    }
+    .email-frame {
+      display: block;
+      width: 100%;
+      min-height: 560px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    details {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      user-select: none;
+    }
+    details pre {
+      border-width: 1px 0 0;
+      border-radius: 0 0 8px 8px;
+      background: #ffffff;
     }
     ul {
       margin: 0;
