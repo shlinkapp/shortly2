@@ -71,7 +71,11 @@ export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
-      maxAge: 60,
+      // Serve session from the signed cookie for up to 5 minutes before
+      // re-reading the session table. Cuts a DB round-trip off most
+      // authenticated requests. Trade-off: role/ban changes take up to
+      // this long to propagate to an already-signed-in client.
+      maxAge: 300,
     },
   },
   socialProviders,

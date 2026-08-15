@@ -5,6 +5,7 @@ import { shortLink, linkLog } from "@/lib/schema"
 import { desc, eq, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { createLinkLog } from "@/lib/link-logs"
+import { revalidateShortLinkCache } from "@/lib/cache/revalidate"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { isRequestOriginAllowed, parseBoundedInt } from "@/lib/http"
 
@@ -82,5 +83,6 @@ export async function DELETE(
   })
 
   await db.delete(shortLink).where(eq(shortLink.id, id))
+  revalidateShortLinkCache(link.domain, link.slug)
   return NextResponse.json({ success: true })
 }

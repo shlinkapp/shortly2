@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { createLinkLog } from "@/lib/link-logs"
 import { getLinkStatus } from "@/lib/link-status"
+import { resolveCachedShortLink } from "@/lib/short-link-resolve"
 import { getAllowedShortDomain } from "@/lib/site-domains"
 import { and, eq, sql } from "drizzle-orm"
 
@@ -20,11 +21,8 @@ export async function GET(
     return NextResponse.redirect(new URL("/", req.url))
   }
 
-  const link = await db
-    .select()
-    .from(shortLink)
-    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
-    .get()
+  // Cached read of the link's immutable fields — popular links skip Turso here.
+  const link = await resolveCachedShortLink(shortDomain.host, slug)
 
   if (!link) {
     return NextResponse.redirect(new URL("/", req.url))
@@ -33,7 +31,6 @@ export async function GET(
   const ip = getClientIpFromHeaders(req.headers)
   const referrer = req.headers.get("referer")
   const userAgent = req.headers.get("user-agent")
-  const status = getLinkStatus(link)
   const logBase = {
     linkId: link.id,
     linkSlug: link.slug,
@@ -43,27 +40,20 @@ export async function GET(
     ipAddress: ip,
   }
 
-  if (status.expiredByDate) {
-    await createLinkLog({
+  // `expiresAt` is immutable, so it can be trusted from cache. `clicks` is not
+  // cached, so the click limit is enforced by the guarded UPDATE below instead.
+  const expiresAtMs = link.expiresAt ? new Date(link.expiresAt).getTime() : null
+  const expiredByDate =
+    expiresAtMs !== null && !Number.isNaN(expiresAtMs) && Date.now() > expiresAtMs
+
+  if (expiredByDate) {
+    after(() => createLinkLog({
       ...logBase,
       eventType: "redirect_blocked_expired",
       statusCode: 410,
-    })
+    }))
 
     return NextResponse.json({ error: "This link has expired." }, { status: 410 })
-  }
-
-  if (status.expiredByClicks) {
-    await createLinkLog({
-      ...logBase,
-      eventType: "redirect_blocked_max_clicks",
-      statusCode: 410,
-    })
-
-    return NextResponse.json(
-      { error: "This link reached the click limit." },
-      { status: 410 }
-    )
   }
 
   const now = new Date()
@@ -78,6 +68,8 @@ export async function GET(
     .run()
 
   if ((updateResult.rowsAffected ?? 0) < 1) {
+    // Contention, expiry, click-limit, or a delete that the cache hasn't caught
+    // yet: fall back to an authoritative read to decide the exact response.
     const latest = await db.select().from(shortLink).where(eq(shortLink.id, link.id)).get()
     if (!latest) {
       return NextResponse.json({ error: "This link is no longer available." }, { status: 410 })
@@ -85,20 +77,20 @@ export async function GET(
 
     const latestStatus = getLinkStatus(latest)
     if (latestStatus.expiredByDate) {
-      await createLinkLog({
+      after(() => createLinkLog({
         ...logBase,
         eventType: "redirect_blocked_expired",
         statusCode: 410,
-      })
+      }))
       return NextResponse.json({ error: "This link has expired." }, { status: 410 })
     }
 
     if (latestStatus.expiredByClicks) {
-      await createLinkLog({
+      after(() => createLinkLog({
         ...logBase,
         eventType: "redirect_blocked_max_clicks",
         statusCode: 410,
-      })
+      }))
       return NextResponse.json(
         { error: "This link reached the click limit." },
         { status: 410 }
@@ -106,11 +98,11 @@ export async function GET(
     }
   }
 
-  await createLinkLog({
+  after(() => createLinkLog({
     ...logBase,
     eventType: "redirect_success",
     statusCode: 302,
-  })
+  }))
 
   return NextResponse.redirect(link.originalUrl, { status: 302 })
 }

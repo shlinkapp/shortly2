@@ -1390,11 +1390,16 @@ export function TempEmailManager() {
       if (loadingMailboxes || loadingMessages) {
         return
       }
+      // Nothing can arrive without a mailbox, so don't spend function
+      // invocations polling for an account that has none yet.
+      if (mailboxes.length === 0) {
+        return
+      }
 
       void fetchMailboxes({ silent: true }).then(() =>
         fetchMessages(messagePage, { silent: true })
       )
-    }, 15000)
+    }, 30000)
 
     return () => window.clearInterval(interval)
   }, [
@@ -1404,6 +1409,7 @@ export function TempEmailManager() {
     loadingMessages,
     messageDialogOpen,
     messagePage,
+    mailboxes.length,
   ])
 
   function handleGenerateRandomPrefix() {

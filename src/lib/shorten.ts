@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
+import { revalidateShortLinkCache } from "@/lib/cache/revalidate"
 import { buildShortUrl, isSelfShortenTarget } from "@/lib/http"
 import { getAllowedShortDomain } from "@/lib/site-domains"
 import { createLinkLog, type LinkLogEventType } from "@/lib/link-logs"
@@ -131,6 +132,9 @@ export async function createShortLink(
 
     throw error
   }
+
+  // Clear any cached negative lookup for this slug so the new link resolves.
+  revalidateShortLinkCache(shortDomain.host, slug)
 
   await createLinkLog({
     linkId: id,
