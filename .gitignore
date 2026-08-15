@@ -14,9 +14,6 @@ package-lock.json
 bun.lock
 !/bun.lock
 
-# testing
-/coverage
-
 # next.js
 /.next/
 /out/

@@ -9,16 +9,13 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 - Build production app: `bun run build`
 - Start production server: `bun run start`
 - Lint: `bun run lint`
-- Run all tests: `bun run test`
-- Run one test file: `bun test src/lib/slug.test.ts`
-- Run tests matching a name: `bun test src/lib/slug.test.ts --test-name-pattern "rejects invalid urls"`
 - Generate Drizzle migration files: `bun run db:generate`
 - Push schema to the database: `bun run db:push`
 
 ## Stack
 
 - Next.js 16 App Router with React 19
-- Bun for package management and tests
+- Bun for package management
 - Drizzle ORM over libSQL/Turso
 - Better Auth for session auth, GitHub OAuth, email OTP, and passkeys
 - Tailwind CSS v4 + shadcn/ui for the UI
