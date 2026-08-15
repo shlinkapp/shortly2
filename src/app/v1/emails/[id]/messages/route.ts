@@ -21,7 +21,7 @@ export async function GET(
   const limit = parseBoundedInt(searchParams.get("limit") ?? searchParams.get("size"), 20, 1, 100)
 
   const result = await listTempMessagesForMailbox(authResult.data.userId, id, page, limit)
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if (!result) {
     return NextResponse.json({ error: "Mailbox not found" }, { status: 404 })

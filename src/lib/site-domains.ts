@@ -1,5 +1,7 @@
-import { revalidateTag, unstable_cache } from "next/cache"
+import { unstable_cache } from "next/cache"
 import { and, asc, eq, ne } from "drizzle-orm"
+import { revalidateSiteDomainsCache } from "@/lib/cache/revalidate"
+import { CACHE_TAGS } from "@/lib/cache/tags"
 import { db, initDb } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 
@@ -50,7 +52,6 @@ type DeleteSiteDomainWriter = Pick<typeof db, "delete">
 
 export type SiteDomainWriteInput = CreateSiteDomainRecordInput | UpdateSiteDomainRecordInput
 
-const SITE_DOMAINS_TAG = "site-domains"
 const SITE_DOMAINS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
 
 const getCachedActiveShortDomains = unstable_cache(
@@ -67,7 +68,7 @@ const getCachedActiveShortDomains = unstable_cache(
       .orderBy(asc(siteDomain.host))
   },
   ["site-domains", SITE_DOMAINS_CACHE_KEY, "short"],
-  { tags: [SITE_DOMAINS_TAG] }
+  { tags: [CACHE_TAGS.siteDomains] }
 )
 
 const getCachedActiveEmailDomains = unstable_cache(
@@ -84,7 +85,7 @@ const getCachedActiveEmailDomains = unstable_cache(
       .orderBy(asc(siteDomain.host))
   },
   ["site-domains", SITE_DOMAINS_CACHE_KEY, "email"],
-  { tags: [SITE_DOMAINS_TAG] }
+  { tags: [CACHE_TAGS.siteDomains] }
 )
 
 function normalizeDomainHost(value: string): string | null {
@@ -169,10 +170,6 @@ async function deleteSiteDomainRecord(id: string, writer: DeleteSiteDomainWriter
   await writer.delete(siteDomain).where(eq(siteDomain.id, id))
 }
 
-export function revalidateSiteDomainsCache() {
-  revalidateTag(SITE_DOMAINS_TAG, "max")
-}
-
 export async function writeCreatedSiteDomain(input: CreateSiteDomainRecordInput) {
   const created = await createSiteDomainRecord(input)
   revalidateSiteDomainsCache()
@@ -235,4 +232,3 @@ export async function getAllowedEmailDomain(host?: string | null) {
   const domains = await getCachedActiveEmailDomains()
   return domains.find((item) => item.host === normalized) ?? null
 }
-

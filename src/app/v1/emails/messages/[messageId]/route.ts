@@ -16,7 +16,7 @@ export async function GET(
 
   const { messageId } = await params
   const detail = await getTempMessageDetail(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if (!detail) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })
@@ -38,7 +38,7 @@ export async function DELETE(
 
   const { messageId } = await params
   const success = await deleteTempMessage(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })

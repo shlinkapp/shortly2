@@ -9,9 +9,13 @@ const client = createClient({
 
 export const db = drizzle(client, { schema })
 
+const shouldAutoInitializeDatabase =
+  process.env.NODE_ENV !== "production" || process.env.DATABASE_AUTO_INIT === "true"
+const databaseReady = Promise.resolve()
 let initPromise: Promise<void> | null = null
 
 export function initDb(): Promise<void> {
+  if (!shouldAutoInitializeDatabase) return databaseReady
   if (initPromise) return initPromise
   initPromise = _initDb()
   return initPromise

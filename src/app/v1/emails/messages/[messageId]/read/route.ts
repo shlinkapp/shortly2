@@ -16,7 +16,7 @@ export async function POST(
 
   const { messageId } = await params
   const success = await markTempMessageRead(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })

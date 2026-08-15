@@ -1,9 +1,10 @@
-import { revalidateTag, unstable_cache } from "next/cache"
+import { unstable_cache } from "next/cache"
 import { eq } from "drizzle-orm"
+import { revalidateSiteSettingsCache } from "@/lib/cache/revalidate"
+import { CACHE_TAGS } from "@/lib/cache/tags"
 import { db, initDb } from "@/lib/db"
 import { siteSetting } from "@/lib/schema"
 
-const SITE_SETTINGS_TAG = "site-settings"
 const SITE_SETTINGS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
 
 async function readSiteSettingsFromDb() {
@@ -18,7 +19,7 @@ async function ensureSiteSettingsDbReady() {
 const getCachedSiteSettings = unstable_cache(
   async () => readSiteSettingsFromDb(),
   ["site-settings", SITE_SETTINGS_CACHE_KEY],
-  { tags: [SITE_SETTINGS_TAG] }
+  { tags: [CACHE_TAGS.siteSettings] }
 )
 
 export async function getSiteSettings() {
@@ -84,8 +85,4 @@ export const siteSettingsCache = {
   getFresh: getSiteSettingsFresh,
   revalidate: revalidateSiteSettingsCache,
   write: writeSiteSettings,
-}
-
-export function revalidateSiteSettingsCache() {
-  revalidateTag(SITE_SETTINGS_TAG, "max")
 }

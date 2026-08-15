@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   return NextResponse.json({
     success: true,

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const limit = parseBoundedInt(searchParams.get("limit"), 10, 1, 100)
   const result = await listLinksForUser(authResult.data.userId, page, limit)
 
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   return NextResponse.json(result)
 }

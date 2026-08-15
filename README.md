@@ -58,6 +58,8 @@ bun run db:generate
 bun run db:push
 ```
 
+生产环境不会在每次 Serverless 冷启动时重复建表或检查迁移。部署前请执行一次 `bun run db:push`；仅在无法执行部署期迁移时，才临时设置 `DATABASE_AUTO_INIT=true`，完成初始化后应移除该变量。
+
 ### 4. 启动开发服务器
 
 ```bash

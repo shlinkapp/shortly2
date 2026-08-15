@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+    await touchApiKeyUsage(authResult.data)
     return addyJson({
       data: {
         id: result.data.id,

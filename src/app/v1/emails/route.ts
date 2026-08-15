@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const limit = parseBoundedInt(searchParams.get("limit") ?? searchParams.get("size"), 10, 1, 100)
 
   const result = await listTempMailboxesForUser(authResult.data.userId, page, limit)
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
   return NextResponse.json(result)
 }
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const result = await createTempMailboxForUser(authResult.data.userId, emailAddress, {
     hourlyCreateLimit: settings?.userMaxLinksPerHour ?? 50,
   })
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status })

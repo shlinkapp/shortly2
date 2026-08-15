@@ -68,6 +68,12 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: false,
   },
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
+    },
+  },
   socialProviders,
   plugins,
   user: {

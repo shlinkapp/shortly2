@@ -1,7 +1,13 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull, lte, or } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { apiKey, user } from "@/lib/schema"
-import { hashApiKey, isValidApiKeyFormat, parseApiKeyFromRequestHeaders } from "@/lib/api-keys"
+import {
+  API_KEY_USAGE_WRITE_INTERVAL_MS,
+  hashApiKey,
+  isValidApiKeyFormat,
+  parseApiKeyFromRequestHeaders,
+  shouldWriteApiKeyUsage,
+} from "@/lib/api-keys"
 
 export async function requireApiKeyUser(headers: Headers) {
   const rawApiKey = parseApiKeyFromRequestHeaders(headers)
@@ -15,6 +21,7 @@ export async function requireApiKeyUser(headers: Headers) {
       id: apiKey.id,
       userId: apiKey.userId,
       name: apiKey.name,
+      lastUsedAt: apiKey.lastUsedAt,
       userBanned: user.banned,
       userBanExpires: user.banExpires,
     })
@@ -41,9 +48,19 @@ export async function requireApiKeyUser(headers: Headers) {
   return { data: keyRecord }
 }
 
-export async function touchApiKeyUsage(keyId: string, userId: string) {
+export async function touchApiKeyUsage(key: { id: string; userId: string; lastUsedAt: Date | null }) {
+  const now = Date.now()
+  if (!shouldWriteApiKeyUsage(key.lastUsedAt, now)) return
+
+  const staleBefore = new Date(now - API_KEY_USAGE_WRITE_INTERVAL_MS)
   await db
     .update(apiKey)
-    .set({ lastUsedAt: new Date() })
-    .where(and(eq(apiKey.id, keyId), eq(apiKey.userId, userId)))
+    .set({ lastUsedAt: new Date(now) })
+    .where(
+      and(
+        eq(apiKey.id, key.id),
+        eq(apiKey.userId, key.userId),
+        or(isNull(apiKey.lastUsedAt), lte(apiKey.lastUsedAt, staleBefore))
+      )
+    )
 }

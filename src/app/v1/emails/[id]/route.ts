@@ -16,7 +16,7 @@ export async function DELETE(
 
   const { id } = await params
   const success = await deleteTempMailbox(authResult.data.userId, decodeURIComponent(id))
-  await touchApiKeyUsage(authResult.data.id, authResult.data.userId)
+  await touchApiKeyUsage(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Mailbox not found" }, { status: 404 })

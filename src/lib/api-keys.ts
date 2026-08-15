@@ -1,6 +1,12 @@
 const API_KEY_PREFIX = "sk_shortly_"
 const API_KEY_RANDOM_BYTES = 32
 
+export const API_KEY_USAGE_WRITE_INTERVAL_MS = 5 * 60 * 1000
+
+export function shouldWriteApiKeyUsage(lastUsedAt: Date | null, now = Date.now()) {
+  return !lastUsedAt || now - lastUsedAt.getTime() >= API_KEY_USAGE_WRITE_INTERVAL_MS
+}
+
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")
 }
