@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { LandingShortenerPreview } from "@/components/landing-shortener-preview"
 import { UserMenu } from "@/components/user-menu"
 import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
@@ -70,10 +71,15 @@ export default async function HomePage({
       }
     : null
 
-  const primaryHref = user ? "/dashboard" : "/login"
-  const secondaryHref = user ? "/dashboard?tab=temp-email" : "/register"
-  const primaryLabel = user ? "进入工作台" : "登录使用"
-  const secondaryLabel = user ? "临时邮箱" : "注册使用"
+  const primaryHref = user ? "/dashboard" : "/register"
+  const secondaryHref = user ? "/dashboard?tab=temp-email" : "/login"
+  const primaryLabel = user ? "进入工作台" : "创建账户"
+  const secondaryLabel = user ? "临时邮箱" : "登录"
+
+  const requestHost = (headersList.get("x-forwarded-host") ?? headersList.get("host") ?? "")
+    .split(",")[0]
+    ?.trim()
+  const previewHost = requestHost || "localhost:3000"
 
   return (
     <main className="min-h-screen bg-[#fafafa] text-[#171717] selection:bg-[#171717] selection:text-white">
@@ -122,10 +128,10 @@ export default async function HomePage({
               短链接 / 临时邮箱服务
             </div>
             <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-tight tracking-normal text-[#171717] sm:text-5xl lg:text-6xl">
-              为临时分享和一次性收件提供服务。
+              更短的分享链接，一次性的收件地址。
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-[#4d4d4d] sm:text-lg">
-              需要公开链接时，我们提供可管理的短链接。需要接收验证码或测试邮件时，我们提供临时邮箱。登录或注册即可开始使用。
+              需要公开分享时，生成可管理、带访问记录的短链接；需要接收验证码或测试邮件时，用临时邮箱隔离你的主邮箱。
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -135,7 +141,7 @@ export default async function HomePage({
                 className="h-11 rounded-md bg-[#171717] px-5 text-white hover:bg-[#333333] focus-visible:ring-0 focus-visible:shadow-[0_0_0_2px_#fff,0_0_0_4px_#0072f5]"
               >
                 <Link href={primaryHref}>
-                  {user ? <ArrowRight className="size-4" /> : <LogIn className="size-4" />}
+                  {user ? <ArrowRight className="size-4" /> : <UserPlus className="size-4" />}
                   {primaryLabel}
                 </Link>
               </Button>
@@ -146,47 +152,50 @@ export default async function HomePage({
                 className="h-11 rounded-md border-0 bg-[#ffffff] px-5 text-[#171717] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] hover:bg-[#f2f2f2] focus-visible:ring-0 focus-visible:shadow-[0_0_0_2px_#fff,0_0_0_4px_#0072f5]"
               >
                 <Link href={secondaryHref}>
-                  {user ? <Mail className="size-4" /> : <UserPlus className="size-4" />}
+                  {user ? <Mail className="size-4" /> : <LogIn className="size-4" />}
                   {secondaryLabel}
                 </Link>
               </Button>
             </div>
           </div>
 
-          <div className="rounded-[8px] bg-[#ffffff] p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_24px_64px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center justify-between gap-3 pb-4">
-              <div>
-                <p className="text-sm font-medium text-[#171717]">服务入口</p>
-                <p className="mt-1 text-xs text-[#8f8f8f]">短链接与临时邮箱</p>
+          {user ? (
+            <div className="rounded-[8px] bg-[#ffffff] p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_24px_64px_rgba(0,0,0,0.06)]">
+              <div className="flex items-center justify-between gap-3 pb-4">
+                <div>
+                  <p className="text-sm font-medium text-[#171717]">服务入口</p>
+                  <p className="mt-1 text-xs text-[#8f8f8f]">短链接与临时邮箱</p>
+                </div>
+                <span className="rounded-full bg-[#f2f2f2] px-2.5 py-1 text-xs font-medium text-[#4d4d4d]">
+                  已启用
+                </span>
               </div>
-              <span className="rounded-full bg-[#f2f2f2] px-2.5 py-1 text-xs font-medium text-[#4d4d4d]">
-                {user ? "已启用" : "登录启用"}
-              </span>
-            </div>
-            <div className="divide-y divide-[#ebebeb] shadow-[0_-1px_0_0_rgba(0,0,0,0.08)]">
-              {featureItems.map((item) => {
-                const Icon = item.icon
-                const href = user ? item.href : "/login"
+              <div className="divide-y divide-[#ebebeb] shadow-[0_-1px_0_0_rgba(0,0,0,0.08)]">
+                {featureItems.map((item) => {
+                  const Icon = item.icon
 
-                return (
-                  <Link
-                    key={item.label}
-                    href={href}
-                    className="group grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 py-4 outline-none transition-colors hover:bg-[#fafafa] focus-visible:shadow-[0_0_0_2px_#fff,0_0_0_4px_#0072f5]"
-                  >
-                    <span className="flex size-9 items-center justify-center rounded-md bg-[#f2f2f2] text-[#171717]">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-[#171717]">{item.label}</span>
-                      <span className="mt-1 block truncate text-xs text-[#8f8f8f]">{item.title}</span>
-                    </span>
-                    <ArrowRight className="size-4 text-[#8f8f8f] transition-colors group-hover:text-[#0072f5]" />
-                  </Link>
-                )
-              })}
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="group grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 py-4 outline-none transition-colors hover:bg-[#fafafa] focus-visible:shadow-[0_0_0_2px_#fff,0_0_0_4px_#0072f5]"
+                    >
+                      <span className="flex size-9 items-center justify-center rounded-md bg-[#f2f2f2] text-[#171717]">
+                        <Icon className="size-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-[#171717]">{item.label}</span>
+                        <span className="mt-1 block truncate text-xs text-[#8f8f8f]">{item.title}</span>
+                      </span>
+                      <ArrowRight className="size-4 text-[#8f8f8f] transition-colors group-hover:text-[#0072f5]" />
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <LandingShortenerPreview previewHost={previewHost} registerHref="/register" />
+          )}
         </section>
 
         <footer className="flex flex-col gap-3 py-6 text-xs text-[#8f8f8f] sm:flex-row sm:items-center sm:justify-between">

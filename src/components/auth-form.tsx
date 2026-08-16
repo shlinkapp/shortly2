@@ -223,6 +223,7 @@ export function AuthForm({
           <Button
             onClick={handleAddPasskey}
             disabled={loading}
+            aria-busy={loading}
             className={primaryButtonClass}
           >
             {loading ? (
@@ -287,6 +288,7 @@ export function AuthForm({
               <Button
                 onClick={handleSendOtp}
                 disabled={loading || !email}
+                aria-busy={loading}
                 className={primaryButtonClass}
               >
                 {loading ? (
@@ -335,6 +337,7 @@ export function AuthForm({
               <Button
                 onClick={handleVerifyOtp}
                 disabled={loading || otp.length < 6}
+                aria-busy={loading}
                 className={primaryButtonClass}
               >
                 {loading && <Loader2 className="size-4 animate-spin" />}

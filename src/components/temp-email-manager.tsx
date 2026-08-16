@@ -274,7 +274,7 @@ function sanitizeEmailHtml(html: string) {
     .replace(/\s(href|src)=("|')\s*javascript:[\s\S]*?\2/gi, "")
 }
 
-const iframeSrcDocPrefix = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><base target=\"_blank\"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#2563eb}</style></head><body>"
+const iframeSrcDocPrefix = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><base target=\"_blank\"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#171717;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#0072f5}</style></head><body>"
 const iframeSrcDocSuffix = "</body></html>"
 
 function buildIframeSrcDoc(html: string) {
@@ -476,7 +476,7 @@ function getMessageActionsClassName() {
 }
 
 function getMetadataGridClassName() {
-  return "grid gap-3 rounded-md bg-muted/[0.18] p-3 text-sm shadow-[0_0_0_1px_rgba(0,0,0,0.08)] sm:grid-cols-2"
+  return "grid gap-3 rounded-md bg-muted/[0.18] p-3 text-sm elevate-ring sm:grid-cols-2"
 }
 
 function getMetadataBlockClassName() {
@@ -484,7 +484,7 @@ function getMetadataBlockClassName() {
 }
 
 function getPreBlockClassName() {
-  return "max-h-[55vh] overflow-auto rounded-md bg-muted/[0.18] p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+  return "max-h-[55vh] overflow-auto rounded-md bg-muted/[0.18] p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words elevate-ring"
 }
 
 function getHtmlFrameClassName() {
@@ -496,11 +496,11 @@ function getEmptyStateClassName() {
 }
 
 function getAttachmentListClassName() {
-  return "space-y-2 rounded-md bg-muted/[0.18] p-3 break-all shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+  return "space-y-2 rounded-md bg-muted/[0.18] p-3 break-all elevate-ring"
 }
 
 function getAttachmentItemClassName() {
-  return "flex flex-col gap-1 rounded-md bg-background px-3 py-2 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] sm:flex-row sm:items-center sm:justify-between"
+  return "flex flex-col gap-1 rounded-md bg-background px-3 py-2 elevate-ring sm:flex-row sm:items-center sm:justify-between"
 }
 
 function getAttachmentMetaClassName() {
@@ -556,11 +556,11 @@ function getInlineMutedClassName() {
 }
 
 function getHeaderListClassName() {
-  return "space-y-2 rounded-md bg-muted/[0.18] p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+  return "space-y-2 rounded-md bg-muted/[0.18] p-3 elevate-ring"
 }
 
 function getHeaderItemClassName() {
-  return "rounded-md bg-background px-3 py-2 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+  return "rounded-md bg-background px-3 py-2 elevate-ring"
 }
 
 function getHeaderNameClassName() {
@@ -620,7 +620,7 @@ function getTabContentClassName() {
 }
 
 function getHtmlFrameWrapperClassName() {
-  return "overflow-hidden rounded-md shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+  return "overflow-hidden rounded-md elevate-ring"
 }
 
 function getMessageDialogAriaLabel() {
@@ -1629,7 +1629,7 @@ export function TempEmailManager() {
       return (
         <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center">
           <div className="max-w-sm space-y-3">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted/30 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted/30 elevate-ring">
               <Inbox className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="space-y-1">
@@ -1649,7 +1649,7 @@ export function TempEmailManager() {
 
     if (messageDetailError) {
       return (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-8 text-center text-sm text-destructive">
+        <div role="alert" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-8 text-center text-sm text-destructive">
           <p>{getMessageDetailErrorCopy(messageDetailError)}</p>
           <Button type="button" variant={getDetailRetryButtonVariant()} size="sm" onClick={handleRetryMessageDetail}>
             {getMessageDetailRetryLabel()}
@@ -1664,7 +1664,7 @@ export function TempEmailManager() {
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="space-y-4 px-6 py-5 shadow-[0_1px_0_0_rgba(0,0,0,0.08)]">
+        <div className="space-y-4 px-6 py-5 elevate-hairline-b">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-2">
               <h3 className="break-words text-lg font-semibold leading-snug">{getMessageTitleForDialog(messageDetail, selectedMessage)}</h3>
@@ -1787,7 +1787,7 @@ export function TempEmailManager() {
   const tempEmailWorkspace = (
     <div className="space-y-5">
       <section className={cn(consoleSurfaceClassName, "overflow-hidden")}>
-        <div className="flex flex-col gap-4 p-5 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 p-5 elevate-hairline-b sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0 space-y-1">
             <ConsoleKicker>Inbox operations</ConsoleKicker>
             <h2 className="text-xl font-semibold sm:text-2xl">临时邮箱收件箱</h2>
@@ -1834,7 +1834,7 @@ export function TempEmailManager() {
       </section>
 
       <div className={cn(consoleSurfaceClassName, "grid min-h-[calc(100vh-18rem)] overflow-hidden xl:grid-cols-[18rem_minmax(20rem,0.9fr)_minmax(0,1.25fr)]")}>
-        <section className="order-2 flex min-h-0 flex-col shadow-[0_1px_0_0_rgba(0,0,0,0.08)] xl:order-1 xl:shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
+        <section className="order-2 flex min-h-0 flex-col elevate-hairline-b xl:order-1 xl:elevate-hairline-r">
           <div className="p-5">
             <div className="space-y-1">
               <h2 className="text-base font-semibold">创建临时邮箱</h2>
@@ -1853,6 +1853,8 @@ export function TempEmailManager() {
                   spellCheck={false}
                   value={mailboxInput}
                   onChange={(event) => setMailboxInput(event.target.value)}
+                  aria-invalid={mailboxLocalPartTooShort || undefined}
+                  aria-describedby={mailboxLocalPartTooShort ? "temp-email-prefix-error" : undefined}
                   className="h-10"
                 />
               </div>
@@ -1873,7 +1875,7 @@ export function TempEmailManager() {
 
               {mailboxPreview && <p className={cn(consoleInsetClassName, "break-all px-3 py-2 font-mono text-xs")}>{mailboxPreview}</p>}
               {mailboxLocalPartTooShort && (
-                <p className="text-xs text-destructive">当前域名要求邮箱前缀至少 {selectedMinLocalPartLength} 个字符。</p>
+                <p id="temp-email-prefix-error" role="alert" className="text-xs text-destructive">当前域名要求邮箱前缀至少 {selectedMinLocalPartLength} 个字符。</p>
               )}
 
               <Button onClick={handleCreateMailbox} disabled={!canCreateMailbox} className="h-10 w-full">
@@ -1894,9 +1896,9 @@ export function TempEmailManager() {
               </div>
 
               {loadingDomains ? (
-                <p className="text-xs text-muted-foreground">正在载入可用邮箱域名…</p>
+                <p role="status" aria-live="polite" className="text-xs text-muted-foreground">正在载入可用邮箱域名…</p>
               ) : domainsError ? (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
                   <span>{domainsError}</span>
                   <Button type="button" variant="link" size="sm" onClick={() => fetchDomains()} className="h-auto p-0 text-destructive">重试</Button>
                 </div>
@@ -1905,8 +1907,8 @@ export function TempEmailManager() {
           </div>
         </section>
 
-        <section className="order-1 flex min-h-0 flex-col shadow-[0_1px_0_0_rgba(0,0,0,0.08)] xl:order-2 xl:shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
-          <div className="space-y-3 p-4 shadow-[0_1px_0_0_rgba(0,0,0,0.08)]">
+        <section className="order-1 flex min-h-0 flex-col elevate-hairline-b xl:order-2 xl:elevate-hairline-r">
+          <div className="space-y-3 p-4 elevate-hairline-b">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold">收件箱</h3>
@@ -1955,7 +1957,7 @@ export function TempEmailManager() {
             </div>
 
             {mailboxesError && (
-              <div className="flex items-center justify-between gap-3 text-xs text-destructive">
+              <div role="alert" className="flex items-center justify-between gap-3 text-xs text-destructive">
                 <span>{mailboxesError}</span>
                 <Button type="button" variant="link" size="sm" onClick={() => fetchMailboxes()} className="h-auto p-0 text-destructive">重试</Button>
               </div>
@@ -1964,9 +1966,9 @@ export function TempEmailManager() {
 
           <div className="min-h-0 flex-1 overflow-auto">
             {loadingMessages ? (
-              <div className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">正在同步邮件…</div>
+              <div role="status" aria-live="polite" className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">正在同步邮件…</div>
             ) : messagesError ? (
-              <div className="flex h-full min-h-80 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-destructive">
+              <div role="alert" className="flex h-full min-h-80 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-destructive">
                 <p>{messagesError}</p>
                 <Button type="button" variant="outline" size="sm" onClick={() => fetchMessages(messagePage)} disabled={loadingMessages}>重试</Button>
               </div>
@@ -1997,11 +1999,11 @@ export function TempEmailManager() {
                     onClick={() => handleOpenMessage(message)}
                     className={cn(
                       "dashboard-focus-ring group w-full rounded-none px-4 py-3.5 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/40",
-                      isSelectedMessage(message, selectedMessage) && "bg-muted/[0.36] shadow-[inset_2px_0_0_#0072F5]"
+                      isSelectedMessage(message, selectedMessage) && "bg-muted/[0.36] shadow-[inset_2px_0_0_var(--dashboard-focus)]"
                     )}
                   >
                     <div className="flex items-start gap-3">
-                      <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", message.isRead ? "bg-transparent" : "bg-[#0072F5]")} />
+                      <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", message.isRead ? "bg-transparent" : "bg-focus")} />
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-start justify-between gap-3">
                           <p className={cn("truncate text-sm", !message.isRead && "font-semibold")}>{getMessageSenderPrimary(message)}</p>
@@ -2011,7 +2013,7 @@ export function TempEmailManager() {
                         <p className="line-clamp-1 text-xs text-muted-foreground">{getMessagePreviewForList(message)}</p>
                         <div className="flex items-center justify-between gap-3 pt-1">
                           <span className="truncate font-mono text-[11px] text-muted-foreground">收件：{message.mailboxEmailAddress}</span>
-                          <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                          <div className="flex shrink-0 items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
                             {!message.isRead && (
                               <Button type="button" variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleMarkRead(message.id) }} disabled={mutatingMessageId === message.id} className="h-7 px-2 text-xs">已读</Button>
                             )}

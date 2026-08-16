@@ -7,17 +7,17 @@ export type ConsoleTone = "neutral" | "good" | "warning" | "danger" | "accent"
 type ConsoleIcon = ComponentType<{ className?: string }>
 
 export const consoleSurfaceClassName =
-  "rounded-lg bg-card shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_2px_rgba(0,0,0,0.02)]"
+  "rounded-lg bg-card elevate-surface-sm"
 
 export const consoleInsetClassName =
-  "rounded-md bg-muted/[0.18] shadow-[0_0_0_1px_rgba(0,0,0,0.06)]"
+  "rounded-md bg-muted/[0.18] elevate-inset"
 
 const toneDotClassNames: Record<ConsoleTone, string> = {
   neutral: "bg-muted-foreground/45",
-  good: "bg-[#398E4A]",
-  warning: "bg-[#FF990A]",
+  good: "bg-foreground",
+  warning: "bg-muted-foreground",
   danger: "bg-destructive",
-  accent: "bg-[#0072F5]",
+  accent: "bg-focus",
 }
 
 export function getConsoleToneDotClassName(tone: ConsoleTone) {
@@ -71,7 +71,7 @@ export function ConsoleMetric({
           </div>
           <div className="mt-2 truncate text-2xl font-semibold tabular-nums text-foreground">{value}</div>
         </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground elevate-ring">
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -93,7 +93,7 @@ export function ConsoleStatusBadge({
     <Badge
       variant="outline"
       className={cn(
-        "h-6 gap-1.5 rounded-full border-transparent bg-background px-2 text-[10px] font-medium text-muted-foreground shadow-[0_0_0_1px_rgba(0,0,0,0.08)]",
+        "h-6 gap-1.5 rounded-full border-transparent bg-background px-2 text-[10px] font-medium text-muted-foreground elevate-ring",
         className
       )}
     >
@@ -113,7 +113,7 @@ export function ConsoleCodeBlock({
   return (
     <pre
       className={cn(
-        "overflow-x-auto rounded-lg bg-muted/[0.18] p-4 font-mono text-xs leading-6 text-foreground/80 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] whitespace-pre-wrap break-words",
+        "overflow-x-auto rounded-lg bg-muted/[0.18] p-4 font-mono text-xs leading-6 text-foreground/80 elevate-ring whitespace-pre-wrap break-words",
         className
       )}
     >

@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-16T02:30:00Z",
+  "title": "Design System: Shortly",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Ink",
+        "canonical": "oklch(0.205 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.371 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.97 0 0)"]
+      },
+      "ring": {
+        "role": "secondary",
+        "displayName": "Interaction Blue",
+        "canonical": "#0072f5",
+        "tonalRamp": ["oklch(0.30 0.13 255)", "oklch(0.38 0.16 255)", "oklch(0.46 0.19 255)", "oklch(0.54 0.21 255)", "oklch(0.62 0.20 255)", "oklch(0.72 0.15 255)", "oklch(0.84 0.09 255)", "oklch(0.94 0.03 255)"]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Destructive Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": ["oklch(0.30 0.13 27)", "oklch(0.40 0.18 27)", "oklch(0.49 0.22 27)", "oklch(0.577 0.245 27)", "oklch(0.66 0.21 27)", "oklch(0.76 0.15 27)", "oklch(0.86 0.09 27)", "oklch(0.95 0.03 27)"]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "#fafafa",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.371 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.97 0 0)", "oklch(0.985 0 0)"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.922 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.371 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.922 0 0)", "oklch(0.97 0 0)"]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Text",
+        "canonical": "oklch(0.556 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.371 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.83 0 0)", "oklch(0.90 0 0)", "oklch(0.97 0 0)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page and panel titles; the largest type in the product — there is no oversized hero." },
+      "title": { "displayName": "Title", "purpose": "Card titles and section headers." },
+      "body": { "displayName": "Body", "purpose": "Default reading and control text." },
+      "label": { "displayName": "Label", "purpose": "Form labels, button text, table headers." },
+      "mono": { "displayName": "Mono (Geist Mono)", "purpose": "Every identifier: slugs, URLs, API keys, email addresses, tabular figures." },
+      "caption": { "displayName": "Caption (11px)", "purpose": "Upper micro step: uppercase console kickers, dense-table primary cells (referrer/IP/timestamp). Dense operator chrome only — never reading copy." },
+      "micro": { "displayName": "Micro (10px)", "purpose": "Smallest step, one notch below Caption to subordinate labels to values in dense blocks: uppercase field micro-labels, status-pill text (ConsoleStatusBadge), mono credential IDs, config code. text-xs (12px) is the everyday small size above both." }
+    },
+    "shadows": [
+      { "name": "elevate-ring", "value": "0 0 0 1px var(--elevate-ring)", "purpose": "Base 1px theme-aware ledge (rgba(0,0,0,0.08) light / rgba(255,255,255,0.10) dark); chips, icon tiles, status pills, controls." },
+      { "name": "elevate-inset", "value": "0 0 0 1px var(--elevate-ring-soft)", "purpose": "Fainter inset ledge for recessed console tiles (consoleInsetClassName)." },
+      { "name": "elevate-hairline-b / -r", "value": "0 1px 0 0 / 1px 0 0 0 var(--elevate-ring)", "purpose": "Single-edge dividers replacing a literal border-bottom/right on raised sections." },
+      { "name": "elevate-surface-sm", "value": "0 0 0 1px var(--elevate-ring), 0 2px 2px var(--elevate-ambient)", "purpose": "Standard console panel lift (consoleSurfaceClassName): ring + contact shadow, theme-aware." },
+      { "name": "auth-surface-shadow", "value": "0 0 0 1px rgba(0,0,0,0.08), 0 2px 2px rgba(0,0,0,0.04), 0 8px 16px -4px rgba(0,0,0,0.04)", "purpose": "Light-only literal for the floating auth card (adds the ambient third layer); auth-border/control-shadow are the ring-only literals." },
+      { "name": "focus-halo", "value": "0 0 0 2px var(--focus-gap), 0 0 0 4px var(--dashboard-focus)", "purpose": "Two-part focus halo: surface-colored spacer (#fff light / background dark) then blue ring; via .dashboard-focus-ring / .auth-focus-ring." }
+    ],
+    "motion": [
+      { "name": "transition-color-shadow", "value": "transition-[color,box-shadow]", "purpose": "Inputs and links: animate only color and shadow on state change." },
+      { "name": "transition-button", "value": "transition-[background-color,border-color,box-shadow,color,opacity,transform]", "purpose": "Buttons: subtle multi-property transition on interaction; reduced-motion-safe." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "auth-column", "value": "408px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action — Ink fill, near-black, confident and neutral.",
+      "html": "<button class=\"ds-btn-primary\">创建短链</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 8px; background: oklch(0.205 0 0); color: oklch(0.985 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.15s, box-shadow 0.15s, transform 0.15s; } .ds-btn-primary:hover { background: oklch(0.245 0 0); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0072f5; } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Muted-surface fill for secondary actions.",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 8px; background: oklch(0.97 0 0); color: oklch(0.205 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.15s, box-shadow 0.15s; } .ds-btn-secondary:hover { background: oklch(0.94 0 0); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0072f5; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Hairline-bordered button on white with a minimal shadow.",
+      "html": "<button class=\"ds-btn-outline\">复制</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: 1px solid oklch(0.922 0 0); border-radius: 8px; background: #fafafa; color: oklch(0.145 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.04); cursor: pointer; transition: background-color 0.15s, box-shadow 0.15s; } .ds-btn-outline:hover { background: oklch(0.97 0 0); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0072f5; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The quietest action — transparent until hovered.",
+      "html": "<button class=\"ds-btn-ghost\">更多</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 8px; background: transparent; color: oklch(0.145 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.15s; } .ds-btn-ghost:hover { background: oklch(0.97 0 0); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0072f5; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Delete/irreversible actions only — red fill, white text.",
+      "html": "<button class=\"ds-btn-destructive\">删除</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 8px; background: oklch(0.577 0.245 27.325); color: #fff; font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.15s, box-shadow 0.15s; } .ds-btn-destructive:hover { background: oklch(0.53 0.235 27.325); } .ds-btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px oklch(0.577 0.245 27.325 / 0.5); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "36px field with hairline border; blue halo on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"https://example.com/very/long/url\" />",
+      "css": ".ds-input { height: 36px; width: 100%; padding: 4px 12px; border: 1px solid oklch(0.922 0 0); border-radius: 8px; background: transparent; color: oklch(0.145 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: color 0.15s, border-color 0.15s, box-shadow 0.15s; } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { outline: none; border-color: #0072f5; box-shadow: 0 0 0 3px rgba(0,114,245,0.5); } .ds-input[aria-invalid=\"true\"] { border-color: oklch(0.577 0.245 27.325); box-shadow: 0 0 0 3px oklch(0.577 0.245 27.325 / 0.2); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White panel on the Ground, lifted by the signature ring-plus-shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">短链接</div><div class=\"ds-card-desc\">管理你创建的短链接与点击统计。</div></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 20px; padding: 24px; border-radius: 14px; background: #ffffff; color: oklch(0.145 0 0); box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 2px 2px rgba(0,0,0,0.04), 0 8px 16px -4px rgba(0,0,0,0.04); } .ds-card-title { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 16px; font-weight: 600; line-height: 1; } .ds-card-desc { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5rem; color: oklch(0.556 0 0); }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Fully rounded status pill; here shown as an 'active' link-status badge.",
+      "html": "<span class=\"ds-badge\">生效中</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 2px 8px; border: 1px solid transparent; border-radius: 9999px; background: oklch(0.205 0 0); color: oklch(0.985 0 0); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 500; white-space: nowrap; }"
+    },
+    {
+      "name": "Value Chip",
+      "kind": "custom",
+      "refersTo": "input-default",
+      "description": "Signature pattern: a mono identifier (slug / URL / key / address) on white with a ring and copy affordance.",
+      "html": "<div class=\"ds-value-chip\"><span class=\"ds-value-chip__text\">sho.rt/aX9k2</span><button class=\"ds-value-chip__copy\" aria-label=\"复制\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\"/></svg></button></div>",
+      "css": ".ds-value-chip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 12px; border-radius: 8px; background: #ffffff; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); } .ds-value-chip__text { font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace; font-size: 14px; color: oklch(0.145 0 0); } .ds-value-chip__copy { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: none; border-radius: 6px; background: transparent; color: oklch(0.556 0 0); cursor: pointer; transition: background-color 0.15s, color 0.15s; } .ds-value-chip__copy:hover { background: oklch(0.97 0 0); color: oklch(0.145 0 0); } .ds-value-chip__copy:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0072f5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Instrument",
+    "overview": "Shortly is a precision instrument for links and mail, not a marketing surface. It works like a well-machined tool: neutral, exact, and quiet at rest, so the user's own data — the URL, the slug, the click count, the incoming message — is always the loudest thing on screen. The interface earns trust by getting out of the way. Nothing is decorative; every border, weight, and shade of gray is load-bearing. The system is monochrome by discipline. It builds hierarchy from a near-black-to-white neutral ramp, hairline borders, and generous whitespace rather than from color or ornament. A single interaction blue (#0072f5) is the one chromatic voice, and it is spent almost entirely on focus and links — its rarity is exactly what makes it read as 'the system is paying attention.' Surfaces are crisp white panels floating on a soft off-white ground, lifted by a signature ring-plus-shadow that reads as physical without ever feeling glossy. The temperament is calm, credible, and low-pressure. It is light-mode first, and deliberately rejects AI-SaaS template gloss, crypto/neon hype, heavy enterprise-admin chrome, and toy-app playfulness. Motion is minimal and reduced-motion-safe: transitions confirm state, they never perform.",
+    "keyCharacteristics": [
+      "Monochrome neutral ramp; color is an event, not a surface.",
+      "Geist Sans + Geist Mono; mono carries every identifier (slugs, keys, addresses).",
+      "Crisp white panels on #fafafa, lifted by a layered ring-plus-shadow.",
+      "Hairline border dividers and disciplined spacing do the structural work.",
+      "Light-mode first; quiet, exact, and reduced-motion-safe."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Interaction Blue is the only chromatic color in the interface, and it appears on a tiny fraction of any screen — focus rings, links, active states. Primary actions are Ink (near-black), not blue. If blue starts filling buttons, cards, or banners, the system has lost its voice.", "section": "colors" },
+      { "name": "The Load-Bearing Gray Rule", "body": "Every gray is a decision. Hierarchy comes from the neutral ramp and hairline borders, not from adding hues. Reach for another step on the ramp before reaching for color.", "section": "colors" },
+      { "name": "The Neutral-Status Rule", "body": "Status is carried by the label, never by hue. ConsoleTone maps every state onto the neutral ramp plus the two reserved colors: good -> bg-foreground (Ink), warning -> bg-muted-foreground, neutral -> bg-muted-foreground/45, accent -> bg-focus (the one blue), danger -> bg-destructive (the one red). There is deliberately no green success and no orange warning token; the dot is a quiet weight signal and the text states the meaning.", "section": "colors" },
+      { "name": "The Light-Only Auth Rule", "body": "The auth and landing surfaces are intentionally light-only and set neutrals as literal hex (#171717, #4d4d4d, #8f8f8f, #d4d4d4, bg-white) rather than theme tokens. This is a deliberate exception, not drift: do not tokenize them or wire them to the dark theme. Interaction Blue (#0072f5) stays the one accent there too.", "section": "colors" },
+      { "name": "The Mono-For-Identifiers Rule", "body": "If a string is copied, keyed, or machine-meaningful (slug, URL, key, address, count), it is set in Geist Mono. Prose is never mono; identifiers are never proportional.", "section": "typography" },
+      { "name": "The Touch-Target Floor Rule", "body": "Density is a fine-pointer concern, so compact h-8/h-9 controls keep tight sizing on desktop. A global @media (pointer: coarse) rule floors real controls (button, [role=button], a[data-slot=button], select, summary) to >=44px; prose links and checkboxes/radios are excluded. Hover-reveal affordances are gated on [@media(hover:hover)]: so they stay visible on touch.", "section": "layout" },
+      { "name": "The Ring-First Rule", "body": "Elevation begins with a 1px ledge (--elevate-ring), then adds soft, low-opacity ambient layers. Never a single dark blur. In light mode opacities stay <= 0.08; depth is felt, not seen. Reach for an .elevate-* utility rather than a new shadow-[...] literal.", "section": "elevation" },
+      { "name": "The Focus-Halo Rule", "body": "Focus is a two-part halo: a spacer ring the color of the surface (--focus-gap, #fff light / background dark) then a 2px Interaction Blue ring, via .dashboard-focus-ring / .auth-focus-ring; form controls use shadcn's 3px ring with a blue border. The blue is the semantic --color-focus/bg-focus token, not --ring (which desaturates in dark). Focus is always visible and always blue; never remove it.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Interaction Blue (#0072f5) reserved for focus, links, and active states; make primary actions Ink (near-black).",
+      "Do build hierarchy from the neutral ramp and hairline borders before considering any color.",
+      "Do set every identifier — slug, URL, API key, email address, count — in Geist Mono.",
+      "Do elevate surfaces with the ring-first layered shadow (0 0 0 1px + soft ambient), radius 14px for panels, 8px for controls.",
+      "Do keep focus states visible as the blue halo, and keep all motion subtle and reduced-motion-safe.",
+      "Do design light-mode first, keep the dark theme coherent, and write user-facing copy Chinese-first.",
+      "Do provide dense tables on desktop and stacked card layouts on mobile for the same data.",
+      "Do carry status meaning in the label and map status dots onto the neutral ramp plus the one blue and one red.",
+      "Do keep dense h-8/h-9 controls on fine pointers, floor real controls to >=44px on coarse pointers, and gate hover-reveal on [@media(hover:hover)]:.",
+      "Do reach for the .elevate-* utilities and --elevate-* variables for depth so surfaces stay coherent in both themes."
+    ],
+    "donts": [
+      "Don't fill buttons, cards, or banners with blue, or introduce a second accent hue.",
+      "Don't use heavy single-blur drop shadows, glossy gradients, or glassmorphism — opacities stay <= 0.08.",
+      "Don't use sharp 0px corners or oversized display type; there is no marketing hero here.",
+      "Don't drift into AI-SaaS template gloss, crypto/neon hype, enterprise-admin heaviness, or toy-app playfulness.",
+      "Don't set prose in mono or identifiers in the proportional font.",
+      "Don't remove or dim focus rings, and don't rely on animation to convey meaning.",
+      "Don't add a green success or orange warning status color — status is neutral-ramp weight plus the label.",
+      "Don't tokenize or dark-theme the auth/landing hex literals; that light-only exception is intentional."
+    ]
+  }
+}

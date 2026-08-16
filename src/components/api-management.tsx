@@ -304,7 +304,7 @@ export function ApiManagementPanel() {
     <>
     <div className="space-y-5">
       <section className={cn(consoleSurfaceClassName, "overflow-hidden")}>
-        <div className="flex flex-col gap-4 p-5 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 p-5 elevate-hairline-b sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0 space-y-1">
             <ConsoleKicker>Integration console</ConsoleKicker>
             <h2 className="text-xl font-semibold sm:text-2xl">API 集成控制台</h2>
@@ -401,7 +401,7 @@ export function ApiManagementPanel() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleCopy(latestPlainKey, "API Key 已复制")}
-                        className="h-8 w-8 text-[#0072F5] hover:bg-muted/60"
+                        className="h-8 w-8 text-focus hover:bg-muted/60"
                         aria-label="复制新 API Key"
                         title="复制新 API Key"
                       >
@@ -415,7 +415,7 @@ export function ApiManagementPanel() {
             {telegramBotHandle && (
               <section className="space-y-4 rounded-lg border border-dashed bg-muted/5 p-4 sm:p-5">
                 <div className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-[#0072F5]" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-focus" />
                   <h3 className="text-sm font-semibold">Telegram 联动</h3>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -445,7 +445,7 @@ export function ApiManagementPanel() {
                </div>
 
                {loading ? (
-                  <div className="flex h-32 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">正在同步密钥…</div>
+                  <div role="status" aria-live="polite" className="flex h-32 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">正在同步密钥…</div>
                 ) : keys.length === 0 ? (
                   <div className="flex h-32 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">目前没有活跃的密钥。</div>
                 ) : (
@@ -468,7 +468,7 @@ export function ApiManagementPanel() {
                            <Button
                               variant="ghost"
                               size="icon-sm"
-                              className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 sm:opacity-0 sm:group-hover:opacity-100"
+                              className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                               onClick={() => setPendingDeleteKey(item)}
                               disabled={deletingKeyId === item.id}
                               aria-label={`删除 API Key ${item.name || item.keyPrefix}`}
@@ -600,7 +600,7 @@ export function ApiManagementPanel() {
                   },
                 ].map((item) => (
                   <div key={item.step} className={cn(consoleInsetClassName, "bg-background p-4")}>
-                    <p className="mb-3 font-mono text-[10px] font-medium text-[#0072F5]">{item.step}</p>
+                    <p className="mb-3 font-mono text-[10px] font-medium text-focus">{item.step}</p>
                     <h4 className="text-sm font-medium">{item.title}</h4>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
                   </div>

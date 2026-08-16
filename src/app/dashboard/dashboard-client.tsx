@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { UserMenu } from "@/components/user-menu"
 import { ShortLinkCreator } from "@/components/short-link-creator"
@@ -292,13 +292,19 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
     replaceUrlState({ page: normalizedPage })
   }
 
+  const linksAbortRef = useRef<AbortController | null>(null)
+  const logsAbortRef = useRef<AbortController | null>(null)
+
   const fetchLinks = useCallback(async (currentPage: number, options?: { silent?: boolean }) => {
+    linksAbortRef.current?.abort()
+    const controller = new AbortController()
+    linksAbortRef.current = controller
     if (!options?.silent) {
       setLoading(true)
     }
     setLinksError(null)
     try {
-      const res = await fetch(`/api/links?page=${currentPage}&limit=${LINK_PAGE_SIZE}`)
+      const res = await fetch(`/api/links?page=${currentPage}&limit=${LINK_PAGE_SIZE}`, { signal: controller.signal })
       if (res.ok) {
         const body = await res.json() as {
           data?: ShortLink[]
@@ -321,6 +327,9 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
         }
       }
     } catch (error) {
+      if (controller.signal.aborted) {
+        return
+      }
       const message = getUserFacingErrorMessage(error, "加载短链记录失败")
       dashboardReporter.report("fetch_links_failed_exception", error, { page: currentPage })
       setLinksError(message)
@@ -328,7 +337,10 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
         toast.error(message)
       }
     } finally {
-      setLoading(false)
+      if (linksAbortRef.current === controller) {
+        linksAbortRef.current = null
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -387,6 +399,9 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
   }
 
   async function handleViewLogs(link: ShortLink, options?: { openDialog?: boolean }) {
+    logsAbortRef.current?.abort()
+    const controller = new AbortController()
+    logsAbortRef.current = controller
     setSelectedLink(link)
     setLogs([])
     setLogsError(null)
@@ -395,7 +410,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
     }
     setLogsLoading(true)
     try {
-      const res = await fetch(`/api/logs/${link.id}`)
+      const res = await fetch(`/api/logs/${link.id}`, { signal: controller.signal })
       if (res.ok) {
         const body = await res.json()
         setLogs(Array.isArray(body) ? body : (body.data || []))
@@ -407,12 +422,18 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
         toast.error(message)
       }
     } catch (error) {
+      if (controller.signal.aborted) {
+        return
+      }
       const message = getUserFacingErrorMessage(error, "加载点击日志失败")
       dashboardReporter.report("view_logs_failed_exception", error, { linkId: link.id })
       setLogsError(message)
       toast.error(message)
     } finally {
-      setLogsLoading(false)
+      if (logsAbortRef.current === controller) {
+        logsAbortRef.current = null
+        setLogsLoading(false)
+      }
     }
   }
 
@@ -466,7 +487,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
   const linksWorkspace = (
     <div className="mx-auto w-full max-w-[110rem] space-y-5">
       <section className={cn(consoleSurfaceClassName, "overflow-hidden")}>
-        <div className="grid gap-5 p-4 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid gap-5 p-4 elevate-hairline-b sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <ConsoleKicker icon={LayoutDashboard}>Workspace</ConsoleKicker>
@@ -526,7 +547,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(30rem,1.18fr)_minmax(24rem,0.82fr)]">
         <section className={cn(consoleSurfaceClassName, "min-w-0 overflow-hidden")}>
-          <div className="bg-muted/[0.16] p-4 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] sm:p-5">
+          <div className="bg-muted/[0.16] p-4 elevate-hairline-b sm:p-5">
             <ShortLinkCreator
               user={user}
               mode="dashboard"
@@ -548,14 +569,18 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
 
             <div className="min-h-0 flex-1 overflow-auto">
               {loading ? (
-                <div className="grid min-h-80 place-items-center px-6 text-center">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="grid min-h-80 place-items-center px-6 text-center"
+                >
                   <div className="space-y-3">
                     <RefreshCw className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">正在加载短链队列…</p>
                   </div>
                 </div>
               ) : linksError ? (
-                <div className="grid min-h-80 place-items-center px-6 text-center">
+                <div role="alert" className="grid min-h-80 place-items-center px-6 text-center">
                   <div className="max-w-sm space-y-4">
                     <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-md bg-destructive/10 text-destructive">
                       <AlertTriangle className="h-5 w-5" />
@@ -624,7 +649,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
                             </div>
                           </button>
 
-                          <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                          <div className="flex shrink-0 items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -696,7 +721,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
           {!selectedLink ? (
             <div className="grid min-h-[34rem] place-items-center px-8 text-center">
               <div className="max-w-sm space-y-4">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted/30 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted/30 elevate-ring">
                   <PanelRight className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="space-y-1">
@@ -833,11 +858,15 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
                   <section className="space-y-3">
                     <h4 className="text-sm font-semibold">最近访问日志</h4>
                     {logsLoading ? (
-                      <div className="grid h-40 place-items-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="grid h-40 place-items-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground"
+                      >
                         正在拉取日志…
                       </div>
                     ) : logsError ? (
-                      <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-destructive/5 px-4 text-center text-sm text-destructive">
+                      <div role="alert" className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-destructive/5 px-4 text-center text-sm text-destructive">
                         <p>{logsError}</p>
                         <Button type="button" variant="outline" size="sm" onClick={handleRefreshLogs}>
                           重试
@@ -966,11 +995,11 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
           <SidebarRail />
         </Sidebar>
         <SidebarInset>
-          <header className="sticky top-0 z-20 bg-background/90 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] backdrop-blur-xl">
+          <header className="sticky top-0 z-20 bg-background/90 elevate-hairline-b backdrop-blur-md">
             <div className="flex min-h-16 flex-col gap-3 px-[var(--page-gutter)] py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <SidebarTrigger className="-ml-2 h-9 w-9" />
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card elevate-ring">
                   <CurrentTabIcon className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="min-w-0">
@@ -1031,7 +1060,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
             </div>
             {selectedLink && (
               <div className={cn(consoleInsetClassName, "mt-4 flex items-center gap-3 p-3")}>
-                <div className="h-2 w-2 rounded-full bg-[#0072F5]" />
+                <div className="h-2 w-2 rounded-full bg-focus" />
                 <code className="font-mono text-xs font-medium text-foreground">
                   {selectedLink.domain}/{selectedLink.slug}
                 </code>
@@ -1041,12 +1070,16 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
 
           <div className="flex-1 overflow-auto px-5 pb-5 sm:px-6 sm:pb-6">
             {logsLoading ? (
-              <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
-                <div className="h-8 w-8 rounded-full border-4 border-muted border-t-[#0072F5] animate-spin" />
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex h-64 flex-col items-center justify-center space-y-4 text-center"
+              >
+                <div className="h-8 w-8 rounded-full border-4 border-muted border-t-focus animate-spin" />
                 <p className="text-sm text-muted-foreground">正在拉取日志…</p>
               </div>
             ) : logsError ? (
-              <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
+              <div role="alert" className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
                 <p className="text-sm text-destructive">{logsError}</p>
                 <Button type="button" variant="outline" size="sm" onClick={handleRefreshLogs}>
                   重试请求
@@ -1104,7 +1137,7 @@ export function DashboardClient({ user, initialTab }: DashboardClientProps) {
               <div className="space-y-3">
                 {logs.map((log) => (
                   <div key={log.id} className={cn(consoleSurfaceClassName, "space-y-4 p-4")}>
-                    <div className="flex items-center justify-between pb-3 shadow-[0_1px_0_0_rgba(0,0,0,0.08)]">
+                    <div className="flex items-center justify-between pb-3 elevate-hairline-b">
                       <ConsoleStatusBadge label={getLogEventLabel(log.eventType)} tone={getLogEventTone(log.eventType)} />
                       <span className="text-[11px] tabular-nums text-muted-foreground">{formatDate(log.createdAt)}</span>
                     </div>

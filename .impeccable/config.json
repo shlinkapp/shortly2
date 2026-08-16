@@ -1,0 +1,16 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "segoe ui",
+        "files": [
+          "src/app/admin/admin-client.tsx"
+        ],
+        "createdAt": "2026-08-16T02:27:02.352Z"
+      }
+    ]
+  }
+}

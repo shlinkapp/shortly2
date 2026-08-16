@@ -23,6 +23,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-focus: var(--dashboard-focus);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -62,6 +63,14 @@
   --section-gap: clamp(3rem, 8vw, 6rem);
   --dashboard-focus: #0072f5;
   --dashboard-focus-strong: #005fcc;
+  /* Elevation is theme-aware: a dark hairline lifts surfaces on the light
+     ground; in dark mode the same ledge is a translucent-white top edge plus a
+     genuinely darker ambient shadow (see .dark). Light values below reproduce
+     the original hardcoded rgba(0,0,0,·) exactly, so light mode is unchanged. */
+  --elevate-ring: rgba(0, 0, 0, 0.08);
+  --elevate-ring-soft: rgba(0, 0, 0, 0.06);
+  --elevate-ambient: rgba(0, 0, 0, 0.02);
+  --focus-gap: #ffffff;
   --background: #fafafa;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -97,6 +106,14 @@
 
 .dark {
   color-scheme: dark;
+  /* Elevation, composed for dark rather than inverted: the lift comes from a
+     translucent-white top ring (light catching the raised edge) over a deeper
+     ambient shadow, and the focus halo's spacer becomes the background so the
+     blue ring still reads as a gap instead of a white outline. */
+  --elevate-ring: rgba(255, 255, 255, 0.10);
+  --elevate-ring-soft: rgba(255, 255, 255, 0.06);
+  --elevate-ambient: rgba(0, 0, 0, 0.40);
+  --focus-gap: var(--background);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -150,13 +167,53 @@
 }
 
 @layer utilities {
+  /* Theme-aware elevation — replaces the scattered shadow-[…rgba(0,0,0,·)…]
+     literals so raised surfaces keep their edge in both themes. */
+  .elevate-ring {
+    box-shadow: 0 0 0 1px var(--elevate-ring);
+  }
+
+  .elevate-inset {
+    box-shadow: 0 0 0 1px var(--elevate-ring-soft);
+  }
+
+  .elevate-hairline-b {
+    box-shadow: 0 1px 0 0 var(--elevate-ring);
+  }
+
+  .elevate-hairline-r {
+    box-shadow: 1px 0 0 0 var(--elevate-ring);
+  }
+
+  .elevate-surface-sm {
+    box-shadow:
+      0 0 0 1px var(--elevate-ring),
+      0 2px 2px var(--elevate-ambient);
+  }
+
+  /* Touch-target floor — density is a fine-pointer (mouse) concern, so the
+     dense operator/admin controls keep their compact sizing there. On coarse
+     pointers there is no dense experience to protect: every control gets a
+     comfortable ≥44px hit area. Scoped to real controls so prose links and
+     checkboxes/radios are left alone. */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    a[data-slot="button"],
+    select,
+    summary {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
   .dashboard-focus-ring {
     @apply outline-none focus-visible:ring-0;
     box-shadow: none;
   }
 
   .dashboard-focus-ring:focus-visible {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--dashboard-focus);
+    box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--dashboard-focus);
   }
 
   .auth-border-shadow {
@@ -175,7 +232,7 @@
   }
 
   .auth-focus-ring:focus-visible {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--dashboard-focus);
+    box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--dashboard-focus);
   }
 
   .auth-control-shadow {
@@ -185,6 +242,6 @@
 
   .auth-control-shadow:focus-visible {
     border-color: transparent;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--dashboard-focus);
+    box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--dashboard-focus);
   }
 }

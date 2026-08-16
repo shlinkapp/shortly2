@@ -351,7 +351,7 @@ function sanitizeEmailHtml(html: string) {
 }
 
 const iframeSrcDocPrefix =
-  '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#111827;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#2563eb}</style></head><body>';
+  '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#171717;line-height:1.6;padding:16px;margin:0;word-break:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}table{max-width:100%;border-collapse:collapse}a{color:#0072f5}</style></head><body>';
 const iframeSrcDocSuffix = "</body></html>";
 
 function buildIframeSrcDoc(html: string) {
@@ -1404,11 +1404,11 @@ export function AdminClient({ user }: AdminClientProps) {
 
           <div className="min-h-0 flex-1 overflow-hidden px-6 py-5">
             {loadingEmailDetail ? (
-              <div className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">
+              <div role="status" aria-live="polite" className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">
                 正在加载邮件详情…
               </div>
             ) : emailDetailError ? (
-              <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 text-sm text-destructive">
+              <div role="alert" className="flex h-full min-h-80 flex-col items-center justify-center gap-4 text-sm text-destructive">
                 <p>{emailDetailError}</p>
                 <Button
                   type="button"
@@ -1527,11 +1527,11 @@ export function AdminClient({ user }: AdminClientProps) {
 
         <div className="min-h-0 flex-1 overflow-auto">
           {loading ? (
-            <div className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            <div role="status" aria-live="polite" className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-muted-foreground">
               正在加载记录…
             </div>
           ) : dataError ? (
-            <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 px-6 text-center">
+            <div role="alert" className="flex h-full min-h-80 flex-col items-center justify-center gap-4 px-6 text-center">
               <p className="text-sm text-destructive">{dataError}</p>
               <Button
                 type="button"
@@ -1603,7 +1603,7 @@ export function AdminClient({ user }: AdminClientProps) {
                       </div>
                     </button>
 
-                    <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                    <div className="flex shrink-0 items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -1882,11 +1882,11 @@ export function AdminClient({ user }: AdminClientProps) {
                 <section className="space-y-3">
                   <h4 className="text-sm font-semibold">最近访问日志</h4>
                   {logsLoading ? (
-                    <div className="flex h-40 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">
+                    <div role="status" aria-live="polite" className="flex h-40 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">
                       正在拉取日志…
                     </div>
                   ) : logsError ? (
-                    <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-destructive/5 px-4 text-center text-sm text-destructive">
+                    <div role="alert" className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-destructive/5 px-4 text-center text-sm text-destructive">
                       <p>{logsError}</p>
                       <Button
                         type="button"
@@ -2020,11 +2020,11 @@ export function AdminClient({ user }: AdminClientProps) {
 
         <div className="min-h-0 flex-1 overflow-auto">
           {loadingEmailData && !emailDataLoaded ? (
-            <div className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            <div role="status" aria-live="polite" className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-muted-foreground">
               正在加载邮箱…
             </div>
           ) : emailDataError ? (
-            <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 px-6 text-center">
+            <div role="alert" className="flex h-full min-h-80 flex-col items-center justify-center gap-4 px-6 text-center">
               <p className="text-sm text-destructive">{emailDataError}</p>
               <Button
                 type="button"
@@ -2167,11 +2167,11 @@ export function AdminClient({ user }: AdminClientProps) {
 
         <div className="min-h-0 flex-1 overflow-auto">
           {loadingEmailData && !emailDataLoaded ? (
-            <div className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">
+            <div role="status" aria-live="polite" className="flex h-full min-h-80 items-center justify-center text-sm text-muted-foreground">
               正在同步邮件…
             </div>
           ) : emailDataError ? (
-            <div className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-destructive">
+            <div role="alert" className="flex h-full min-h-80 items-center justify-center px-6 text-center text-sm text-destructive">
               {emailDataError}
             </div>
           ) : emailListMode === "messages" ? (
@@ -2488,11 +2488,11 @@ export function AdminClient({ user }: AdminClientProps) {
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <div className="py-14 text-center text-sm text-muted-foreground">
+                    <div role="status" aria-live="polite" className="py-14 text-center text-sm text-muted-foreground">
                       正在加载…
                     </div>
                   ) : dataError ? (
-                    <div className="space-y-4 py-14 text-center text-sm text-destructive">
+                    <div role="alert" className="space-y-4 py-14 text-center text-sm text-destructive">
                       <p>{dataError}</p>
                       <Button
                         type="button"
@@ -2815,11 +2815,11 @@ export function AdminClient({ user }: AdminClientProps) {
                   </CardHeader>
                   <CardContent>
                     {loading ? (
-                      <div className="py-14 text-center text-sm text-muted-foreground">
+                      <div role="status" aria-live="polite" className="py-14 text-center text-sm text-muted-foreground">
                         正在加载…
                       </div>
                     ) : dataError ? (
-                      <div className="space-y-4 py-14 text-center text-sm text-destructive">
+                      <div role="alert" className="space-y-4 py-14 text-center text-sm text-destructive">
                         <p>{dataError}</p>
                         <Button
                           type="button"
@@ -3235,11 +3235,11 @@ export function AdminClient({ user }: AdminClientProps) {
 
             <div className="flex-1 overflow-hidden py-4">
               {loadingEmailDetail ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <div role="status" aria-live="polite" className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   正在加载邮件详情…
                 </div>
               ) : emailDetailError ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4 text-sm text-destructive">
+                <div role="alert" className="flex h-full flex-col items-center justify-center gap-4 text-sm text-destructive">
                   <p>{emailDetailError}</p>
                   {selectedEmailItem && (
                     <Button
@@ -3347,11 +3347,11 @@ export function AdminClient({ user }: AdminClientProps) {
               </Button>
             </div>
             {logsLoading ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">
+              <div role="status" aria-live="polite" className="py-10 text-center text-sm text-muted-foreground">
                 正在加载…
               </div>
             ) : logsError ? (
-              <div className="space-y-4 py-10 text-center text-sm text-destructive">
+              <div role="alert" className="space-y-4 py-10 text-center text-sm text-destructive">
                 <p>{logsError}</p>
                 <Button
                   type="button"

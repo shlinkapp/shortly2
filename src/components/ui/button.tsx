@@ -43,12 +43,17 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  type,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
   const Comp = asChild ? Slot.Root : "button"
+  // Native buttons default to type="submit"; force "button" so a Button never
+  // submits a surrounding form by accident. When asChild, the rendered child
+  // (often an <a>) owns its own semantics, so only forward an explicit type.
+  const resolvedType = asChild ? type : type ?? "button"
 
   return (
     <Comp
@@ -56,6 +61,7 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      {...(resolvedType !== undefined ? { type: resolvedType } : {})}
       {...props}
     />
   )

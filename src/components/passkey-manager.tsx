@@ -152,7 +152,7 @@ export function PasskeyManager() {
   return (
     <div className="space-y-5">
       <section className={cn(consoleSurfaceClassName, "overflow-hidden")}>
-        <div className="flex flex-col gap-4 p-5 shadow-[0_1px_0_0_rgba(0,0,0,0.08)] sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 p-5 elevate-hairline-b sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0 space-y-1">
             <ConsoleKicker>Credential control</ConsoleKicker>
             <h2 className="text-xl font-semibold sm:text-2xl">安全凭证控制台</h2>
@@ -233,8 +233,8 @@ export function PasskeyManager() {
             当前浏览器或设备环境暂不支持通行密钥。
           </div>
         ) : isPending ? (
-          <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#0072F5]" />
+          <div role="status" aria-live="polite" className="flex min-h-40 items-center justify-center rounded-lg border border-dashed bg-muted/5 text-sm text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin text-focus" />
             正在载入密钥列表…
           </div>
         ) : !passkeys?.length ? (
@@ -248,7 +248,7 @@ export function PasskeyManager() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/40 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/40 elevate-ring">
                         <MonitorSmartphone className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -287,7 +287,7 @@ export function PasskeyManager() {
                     size="icon"
                     onClick={() => setPendingDeletePasskey(pk)}
                     disabled={deleteId === pk.id}
-                    className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 sm:opacity-0 sm:group-hover:opacity-100"
+                    className="h-8 w-8 text-destructive opacity-100 transition-opacity hover:bg-destructive/10 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                     aria-label={`删除通行密钥 ${pk.name || pk.credentialID}`}
                     title="删除通行密钥"
                   >
