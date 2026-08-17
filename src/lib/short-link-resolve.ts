@@ -18,7 +18,8 @@ export type ResolvedShortLink = {
   maxClicks: number | null
 }
 
-const SHORT_LINK_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
+const SHORT_LINK_CACHE_KEY =
+  process.env.DATABASE_CACHE_NAMESPACE ?? process.env.TURSO_DATABASE_URL ?? "local"
 
 // Fallback self-heal window in case a revalidation is ever missed. Correctness
 // on create/delete comes from revalidateShortLinkCache(); this is defense in

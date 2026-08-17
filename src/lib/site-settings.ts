@@ -5,7 +5,8 @@ import { CACHE_TAGS } from "@/lib/cache/tags"
 import { db, initDb } from "@/lib/db"
 import { siteSetting } from "@/lib/schema"
 
-const SITE_SETTINGS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
+const SITE_SETTINGS_CACHE_KEY =
+  process.env.DATABASE_CACHE_NAMESPACE ?? process.env.TURSO_DATABASE_URL ?? "local"
 
 async function readSiteSettingsFromDb() {
   await initDb()

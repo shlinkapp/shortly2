@@ -9,7 +9,7 @@ Shortly 是一个现代化、轻量级且功能强大的开源短链接、临时
 - **样式**: Tailwind CSS v4 + class-variance-authority + tailwind-merge
 - **UI 组件**: [shadcn/ui](https://ui.shadcn.com/) + Radix UI
 - **图标**: Lucide React
-- **数据库 ORM**: Drizzle ORM (配合 SQLite)
+- **数据库 ORM**: Drizzle ORM（支持 Turso/libSQL 与 Cloudflare D1）
 - **认证系统**: Better Auth
 - **邮件服务**: Resend (用于发送验证码)
 
@@ -34,7 +34,8 @@ cp .env.example .env
 ```
 
 主要的的环境变量包括：
-- 数据库连接（例如指向本地 SQLite 文件）
+- `DATABASE_DRIVER`: 数据库驱动，常规本地/Turso 环境使用 `turso`，Cloudflare Workers 使用 `d1`
+- `TURSO_DATABASE_URL`、`TURSO_AUTH_TOKEN`: 仅在 `DATABASE_DRIVER=turso` 时使用
 - `BETTER_AUTH_SECRET`: 用于保护会话的随机字符串
 - `API_KEY_PEPPER`: （可选）用于 API Key 哈希加盐，建议生产环境配置
 - `BOOTSTRAP_ADMIN_EMAILS`: （可选）逗号分隔邮箱列表，匹配的注册用户会自动获得 `admin` 权限
@@ -58,7 +59,7 @@ bun run db:generate
 bun run db:push
 ```
 
-生产环境不会在每次 Serverless 冷启动时重复建表或检查迁移。部署前请执行一次 `bun run db:push`；仅在无法执行部署期迁移时，才临时设置 `DATABASE_AUTO_INIT=true`，完成初始化后应移除该变量。
+生产环境不会在每次 Serverless 冷启动时重复建表或检查迁移。Turso 部署前请执行一次 `bun run db:push`；仅在无法执行部署期迁移时，才临时设置 `DATABASE_AUTO_INIT=true`，完成初始化后应移除该变量。D1 使用下方的 Wrangler migration 命令。
 
 ### 4. 启动开发服务器
 
@@ -67,6 +68,60 @@ bun run dev
 ```
 
 启动完毕后，浏览器打开 [http://localhost:3000](http://localhost:3000) 即可预览。
+
+## Cloudflare Workers + D1 部署
+
+主应用使用 `@opennextjs/cloudflare` 部署到 Workers。`wrangler.jsonc` 已配置业务数据库 `DB`、OpenNext 标签缓存 `NEXT_TAG_CACHE_D1`、R2 增量缓存和 Durable Object 重验证队列。
+
+### 1. 创建 Cloudflare 资源
+
+```bash
+bunx wrangler login
+bunx wrangler d1 create shortly-db
+bunx wrangler d1 create shortly-opennext-cache
+bunx wrangler r2 bucket create shortly-opennext-cache
+```
+
+将两个 `d1 create` 命令返回的 `database_id` 分别替换到 `wrangler.jsonc` 的 `DB` 和 `NEXT_TAG_CACHE_D1` 配置中。不要保留示例占位 ID。
+
+### 2. 初始化 D1
+
+```bash
+bun run d1:migrate:remote
+bun run d1:cache:migrate:remote
+```
+
+业务表迁移位于 `migrations/`，OpenNext 标签缓存表迁移位于 `cache-migrations/`。OpenNext 的 `preview`/`deploy` 缓存填充阶段也会确保标签缓存表存在。
+
+### 3. 配置变量与密钥
+
+至少配置以下生产密钥：
+
+```bash
+bunx wrangler secret put BETTER_AUTH_SECRET
+bunx wrangler secret put API_KEY_PEPPER
+```
+
+根据启用的功能继续配置 `RESEND_API_KEY`、`GITHUB_CLIENT_SECRET`、`INBOUND_EMAIL_SECRET` 和 `TELEGRAM_BOT_TOKEN`。将 `BETTER_AUTH_URL`、`NEXT_PUBLIC_APP_URL`、OAuth Client ID 等非敏感值加入 `wrangler.jsonc` 的 `vars`，或者在 Cloudflare Dashboard 中配置。`NEXT_PUBLIC_APP_URL` 还必须作为构建环境变量提供，因为 `NEXT_PUBLIC_*` 会在 Next.js 构建时内联。
+
+### 4. 本地 Workers 预览
+
+```bash
+cp .dev.vars.example .dev.vars
+bun run d1:migrate:local
+bun run d1:cache:migrate:local
+bun run preview
+```
+
+预览地址默认为 [http://localhost:8787](http://localhost:8787)。常规 `bun run dev` 仍可配合 `.env` 中的 `DATABASE_DRIVER=turso` 使用本地 libSQL；若要在 Next.js 开发服务器中直接使用本地 D1，将其改为 `d1`。
+
+### 5. 部署
+
+```bash
+NEXT_PUBLIC_APP_URL=https://your-domain.example bun run deploy
+```
+
+部署后在 Cloudflare 中绑定自定义域名，并确保 `BETTER_AUTH_URL` 与 `NEXT_PUBLIC_APP_URL` 都指向最终 HTTPS 地址。可先运行 `bun run cf:build` 单独验证 Worker 构建，运行 `bun run cf-typegen` 刷新 `cloudflare-env.d.ts`。
 
 ## 💡 使用指南
 

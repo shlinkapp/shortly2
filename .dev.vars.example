@@ -1,0 +1,15 @@
+# Used by Wrangler/OpenNext local preview. Do not commit the real .dev.vars file.
+NEXTJS_ENV=development
+BETTER_AUTH_SECRET=change-this-to-a-random-secret-at-least-32-chars
+BETTER_AUTH_URL=http://localhost:8787
+NEXT_PUBLIC_APP_URL=http://localhost:8787
+API_KEY_PEPPER=
+INBOUND_EMAIL_SECRET=
+TELEGRAM_BOT_TOKEN=
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=shortly@example.com
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+BOOTSTRAP_ADMIN_EMAILS=
+TRUST_X_FORWARDED_FOR=true
+TRUST_PROXY_HOPS=1

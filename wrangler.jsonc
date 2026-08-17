@@ -1,0 +1,61 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shortly",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-04-27",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "shortly"
+    }
+  ],
+  "vars": {
+    "DATABASE_DRIVER": "d1",
+    "DATABASE_AUTO_INIT": "false",
+    "DATABASE_CACHE_NAMESPACE": "d1:shortly-db"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shortly-db",
+      // Replace this placeholder with the ID returned by `wrangler d1 create shortly-db`.
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations"
+    },
+    {
+      "binding": "NEXT_TAG_CACHE_D1",
+      "database_name": "shortly-opennext-cache",
+      // Replace this placeholder with the ID returned by `wrangler d1 create shortly-opennext-cache`.
+      "database_id": "00000000-0000-0000-0000-000000000002",
+      "migrations_dir": "cache-migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "shortly-opennext-cache"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NEXT_CACHE_DO_QUEUE",
+        "class_name": "DOQueueHandler"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "opennext-cache-v1",
+      "new_sqlite_classes": ["DOQueueHandler"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

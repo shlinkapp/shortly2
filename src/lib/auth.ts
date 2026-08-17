@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { emailOTP } from "better-auth/plugins/email-otp"
 import { passkey } from "@better-auth/passkey"
 import { Resend } from "resend"
-import { db } from "./db"
+import { getDb } from "./db"
 import * as schema from "./schema"
 import { eq } from "drizzle-orm"
 import { APIError } from "better-auth/api"
@@ -16,7 +16,7 @@ const bootstrapAdminEmails = new Set(
   (process.env.BOOTSTRAP_ADMIN_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
+    .filter(Boolean),
 )
 
 const plugins: Parameters<typeof betterAuth>[0]["plugins"] = [
@@ -39,7 +39,7 @@ if (resendApiKey) {
       },
       otpLength: 6,
       expiresIn: 600,
-    })
+    }),
   )
 }
 
@@ -52,107 +52,132 @@ if (githubClientId && githubClientSecret) {
   }
 }
 
-export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL,
-  secret: process.env.BETTER_AUTH_SECRET!,
-  database: drizzleAdapter(db, {
-    provider: "sqlite",
-    schema: {
-      user: schema.user,
-      session: schema.session,
-      account: schema.account,
-      verification: schema.verification,
-      passkey: schema.passkey,
-    },
-  }),
-  emailAndPassword: {
-    enabled: false,
-  },
-  session: {
-    cookieCache: {
-      enabled: true,
-      // Serve session from the signed cookie for up to 5 minutes before
-      // re-reading the session table. Cuts a DB round-trip off most
-      // authenticated requests. Trade-off: role/ban changes take up to
-      // this long to propagate to an already-signed-in client.
-      maxAge: 300,
-    },
-  },
-  socialProviders,
-  plugins,
-  user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        defaultValue: "user",
-        input: false,
-      },
-      banned: {
-        type: "boolean",
-        defaultValue: false,
-        input: false,
-      },
-      banReason: {
-        type: "string",
-        required: false,
-        input: false,
-      },
-      banExpires: {
-        type: "date",
-        required: false,
-        input: false,
-      },
-    },
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          if (!bootstrapAdminEmails.has(user.email.trim().toLowerCase())) {
-            return
-          }
+function createAuth() {
+  const database = getDb()
 
-          await db
-            .update(schema.user)
-            .set({ role: "admin" })
-            .where(eq(schema.user.id, user.id))
-        },
+  return betterAuth({
+    baseURL: process.env.BETTER_AUTH_URL,
+    secret: process.env.BETTER_AUTH_SECRET!,
+    database: drizzleAdapter(database, {
+      provider: "sqlite",
+      schema: {
+        user: schema.user,
+        session: schema.session,
+        account: schema.account,
+        verification: schema.verification,
+        passkey: schema.passkey,
       },
+    }),
+    emailAndPassword: {
+      enabled: false,
     },
     session: {
-      create: {
-        before: async (session) => {
-          const user = await db
-            .select({
-              id: schema.user.id,
-              banned: schema.user.banned,
-              banExpires: schema.user.banExpires,
-            })
-            .from(schema.user)
-            .where(eq(schema.user.id, session.userId))
-            .get()
-
-          if (!user?.banned) {
-            return
-          }
-
-          if (user.banExpires && user.banExpires.getTime() <= Date.now()) {
-            await db
-              .update(schema.user)
-              .set({ banned: false, banReason: null, banExpires: null, updatedAt: new Date() })
-              .where(eq(schema.user.id, user.id))
-            return
-          }
-
-          throw APIError.from("FORBIDDEN", {
-            message: "账号已被封禁。如有疑问，请联系管理员。",
-            code: "BANNED_USER",
-          })
+      cookieCache: {
+        enabled: true,
+        // Serve session from the signed cookie for up to 5 minutes before
+        // re-reading the session table. Cuts a DB round-trip off most
+        // authenticated requests. Trade-off: role/ban changes take up to
+        // this long to propagate to an already-signed-in client.
+        maxAge: 300,
+      },
+    },
+    socialProviders,
+    plugins,
+    user: {
+      additionalFields: {
+        role: {
+          type: "string",
+          defaultValue: "user",
+          input: false,
+        },
+        banned: {
+          type: "boolean",
+          defaultValue: false,
+          input: false,
+        },
+        banReason: {
+          type: "string",
+          required: false,
+          input: false,
+        },
+        banExpires: {
+          type: "date",
+          required: false,
+          input: false,
         },
       },
     },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            if (!bootstrapAdminEmails.has(user.email.trim().toLowerCase())) {
+              return
+            }
+
+            await database
+              .update(schema.user)
+              .set({ role: "admin" })
+              .where(eq(schema.user.id, user.id))
+          },
+        },
+      },
+      session: {
+        create: {
+          before: async (session) => {
+            const user = await database
+              .select({
+                id: schema.user.id,
+                banned: schema.user.banned,
+                banExpires: schema.user.banExpires,
+              })
+              .from(schema.user)
+              .where(eq(schema.user.id, session.userId))
+              .get()
+
+            if (!user?.banned) {
+              return
+            }
+
+            if (user.banExpires && user.banExpires.getTime() <= Date.now()) {
+              await database
+                .update(schema.user)
+                .set({
+                  banned: false,
+                  banReason: null,
+                  banExpires: null,
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.user.id, user.id))
+              return
+            }
+
+            throw APIError.from("FORBIDDEN", {
+              message: "账号已被封禁。如有疑问，请联系管理员。",
+              code: "BANNED_USER",
+            })
+          },
+        },
+      },
+    },
+  })
+}
+
+type Auth = ReturnType<typeof createAuth>
+
+export function getAuth(): Auth {
+  return createAuth()
+}
+
+// Keep the existing import surface while resolving an auth instance only when
+// it is used inside the current request.
+export const auth = new Proxy({} as Auth, {
+  get(_target, property) {
+    const currentAuth = getAuth()
+    const value = Reflect.get(currentAuth, property, currentAuth) as unknown
+    return typeof value === "function" ? value.bind(currentAuth) : value
   },
 })
 
-export type Session = typeof auth.$Infer.Session
-export type User = typeof auth.$Infer.Session.user
+export type Session = Auth["$Infer"]["Session"]
+export type User = Session["user"]

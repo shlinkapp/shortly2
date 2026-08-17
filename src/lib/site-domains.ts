@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache"
 import { and, asc, eq, ne } from "drizzle-orm"
 import { revalidateSiteDomainsCache } from "@/lib/cache/revalidate"
 import { CACHE_TAGS } from "@/lib/cache/tags"
-import { db, initDb } from "@/lib/db"
+import { db, getDb, initDb, isD1Database } from "@/lib/db"
 import { siteDomain } from "@/lib/schema"
 
 type ActiveShortDomain = {
@@ -52,7 +52,8 @@ type DeleteSiteDomainWriter = Pick<typeof db, "delete">
 
 export type SiteDomainWriteInput = CreateSiteDomainRecordInput | UpdateSiteDomainRecordInput
 
-const SITE_DOMAINS_CACHE_KEY = process.env.TURSO_DATABASE_URL ?? "local"
+const SITE_DOMAINS_CACHE_KEY =
+  process.env.DATABASE_CACHE_NAMESPACE ?? process.env.TURSO_DATABASE_URL ?? "local"
 
 const getCachedActiveShortDomains = unstable_cache(
   async (): Promise<ActiveShortDomain[]> => {
@@ -150,7 +151,61 @@ async function clearDefaultSiteDomainFlags(
   }
 }
 
+async function createSiteDomainRecordD1(input: CreateSiteDomainRecordInput) {
+  const database = getDb()
+  const clearShortDefault = database
+    .update(siteDomain)
+    .set({ isDefaultShortDomain: false })
+    .where(eq(siteDomain.isDefaultShortDomain, true))
+  const clearEmailDefault = database
+    .update(siteDomain)
+    .set({ isDefaultEmailDomain: false })
+    .where(eq(siteDomain.isDefaultEmailDomain, true))
+  const insertDomain = database.insert(siteDomain).values(input)
+
+  if (input.isDefaultShortDomain && input.isDefaultEmailDomain) {
+    await database.batch([clearShortDefault, clearEmailDefault, insertDomain])
+  } else if (input.isDefaultShortDomain) {
+    await database.batch([clearShortDefault, insertDomain])
+  } else if (input.isDefaultEmailDomain) {
+    await database.batch([clearEmailDefault, insertDomain])
+  } else {
+    await insertDomain
+  }
+
+  return database.select().from(siteDomain).where(eq(siteDomain.id, input.id)).get()
+}
+
+async function updateSiteDomainRecordD1(id: string, input: UpdateSiteDomainRecordInput) {
+  const database = getDb()
+  const clearShortDefault = database
+    .update(siteDomain)
+    .set({ isDefaultShortDomain: false })
+    .where(and(eq(siteDomain.isDefaultShortDomain, true), ne(siteDomain.id, id)))
+  const clearEmailDefault = database
+    .update(siteDomain)
+    .set({ isDefaultEmailDomain: false })
+    .where(and(eq(siteDomain.isDefaultEmailDomain, true), ne(siteDomain.id, id)))
+  const updateDomain = database.update(siteDomain).set(input).where(eq(siteDomain.id, id))
+
+  if (input.isDefaultShortDomain && input.isDefaultEmailDomain) {
+    await database.batch([clearShortDefault, clearEmailDefault, updateDomain])
+  } else if (input.isDefaultShortDomain) {
+    await database.batch([clearShortDefault, updateDomain])
+  } else if (input.isDefaultEmailDomain) {
+    await database.batch([clearEmailDefault, updateDomain])
+  } else {
+    await updateDomain
+  }
+
+  return database.select().from(siteDomain).where(eq(siteDomain.id, id)).get()
+}
+
 export async function createSiteDomainRecord(input: CreateSiteDomainRecordInput) {
+  if (isD1Database()) {
+    return createSiteDomainRecordD1(input)
+  }
+
   return db.transaction(async (tx) => {
     await clearDefaultSiteDomainFlags(tx, input)
     await tx.insert(siteDomain).values(input)
@@ -159,6 +214,10 @@ export async function createSiteDomainRecord(input: CreateSiteDomainRecordInput)
 }
 
 export async function updateSiteDomainRecord(id: string, input: UpdateSiteDomainRecordInput) {
+  if (isD1Database()) {
+    return updateSiteDomainRecordD1(id, input)
+  }
+
   return db.transaction(async (tx) => {
     await clearDefaultSiteDomainFlags(tx, input, id)
     await tx.update(siteDomain).set(input).where(eq(siteDomain.id, id))

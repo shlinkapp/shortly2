@@ -1,8 +1,19 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+initOpenNextCloudflareForDev();
 
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  outputFileTracingIncludes: {
+    "*": [
+      "./node_modules/@libsql/client/lib-esm/web.js",
+      "./node_modules/@libsql/hrana-client/lib-esm/index.js",
+      "./node_modules/@libsql/isomorphic-ws/web.mjs",
+      "./node_modules/@libsql/isomorphic-ws/package.json",
+    ],
+  },
   async headers() {
     return [
       {

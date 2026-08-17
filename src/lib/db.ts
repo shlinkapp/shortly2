@@ -1,28 +1,162 @@
-import { createClient } from "@libsql/client"
-import { drizzle } from "drizzle-orm/libsql"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { createRequire } from "node:module"
+import { createClient as createWebClient, type Client } from "@libsql/client/web"
+import { drizzle as drizzleD1 } from "drizzle-orm/d1"
+import { drizzle as drizzleLibSql, type LibSQLDatabase } from "drizzle-orm/libsql"
 import * as schema from "./schema"
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN || undefined,
+type Database = LibSQLDatabase<typeof schema>
+type D1DatabaseBinding = {
+  prepare(statement: string): {
+    all<T>(): Promise<{ results: T[] }>
+    run(): Promise<unknown>
+  }
+  exec(statements: string): Promise<unknown>
+}
+type DatabaseBackend =
+  | { kind: "d1"; binding: D1DatabaseBinding }
+  | { kind: "turso"; client: Client }
+
+type RawSqlResult = { rows: Array<Record<string, unknown>> }
+type SqlExecutor = {
+  execute(statement: string): Promise<RawSqlResult>
+  executeMultiple(statements: string): Promise<void>
+}
+
+let libSqlClient: Client | null = null
+let libSqlDb: Database | null = null
+
+function getLibSqlClient(): Client {
+  if (libSqlClient) return libSqlClient
+
+  const url = process.env.TURSO_DATABASE_URL
+  if (!url) {
+    throw new Error("TURSO_DATABASE_URL is required when DATABASE_DRIVER is not set to d1")
+  }
+
+  const createClient = url.startsWith("file:")
+    ? getNodeLibSqlClientFactory()
+    : createWebClient
+
+  libSqlClient = createClient({
+    url,
+    authToken: process.env.TURSO_AUTH_TOKEN || undefined,
+  })
+  return libSqlClient
+}
+
+function getNodeLibSqlClientFactory(): typeof createWebClient {
+  // Keep the native SQLite entry out of the Worker bundle. This branch only
+  // runs for file: URLs in local Node.js development.
+  const require = createRequire(import.meta.url)
+  const moduleName = ["@libsql", "client", "node"].join("/")
+  const nodeClient = require(moduleName) as { createClient: typeof createWebClient }
+  return nodeClient.createClient
+}
+
+function getDatabaseBackend(): DatabaseBackend {
+  const configuredDriver = process.env.DATABASE_DRIVER as "d1" | "turso" | undefined
+  if (configuredDriver === "turso") {
+    return { kind: "turso", client: getLibSqlClient() }
+  }
+
+  try {
+    const binding = getCloudflareContext().env.DB as D1DatabaseBinding | undefined
+    if (binding) return { kind: "d1", binding }
+  } catch (error) {
+    if (configuredDriver === "d1") {
+      throw new Error("Cloudflare D1 binding DB is unavailable", { cause: error })
+    }
+  }
+
+  if (configuredDriver === "d1") {
+    throw new Error("Cloudflare D1 binding DB is unavailable")
+  }
+
+  return { kind: "turso", client: getLibSqlClient() }
+}
+
+export function isD1Database(): boolean {
+  return getDatabaseBackend().kind === "d1"
+}
+
+export function getDb(): Database {
+  const backend = getDatabaseBackend()
+  if (backend.kind === "d1") {
+    return drizzleD1(backend.binding as Parameters<typeof drizzleD1>[0], { schema }) as unknown as Database
+  }
+
+  libSqlDb ??= drizzleLibSql(backend.client, { schema })
+  return libSqlDb
+}
+
+// Existing modules can keep importing `db`; the proxy resolves the real client
+// only when a query starts, inside the current Worker request context.
+export const db = new Proxy({} as Database, {
+  get(_target, property) {
+    const database = getDb()
+    const value = Reflect.get(database, property, database) as unknown
+    return typeof value === "function" ? value.bind(database) : value
+  },
 })
 
-export const db = drizzle(client, { schema })
+function createSqlExecutor(backend: DatabaseBackend): SqlExecutor {
+  if (backend.kind === "turso") {
+    return {
+      async execute(statement) {
+        const result = await backend.client.execute(statement)
+        return { rows: result.rows as unknown as Array<Record<string, unknown>> }
+      },
+      async executeMultiple(statements) {
+        await backend.client.executeMultiple(statements)
+      },
+    }
+  }
+
+  return {
+    async execute(statement) {
+      const prepared = backend.binding.prepare(statement)
+      if (/^\s*(?:PRAGMA|SELECT|WITH)\b/i.test(statement)) {
+        const result = await prepared.all<Record<string, unknown>>()
+        return { rows: result.results ?? [] }
+      }
+
+      await prepared.run()
+      return { rows: [] }
+    },
+    async executeMultiple(statements) {
+      await backend.binding.exec(statements)
+    },
+  }
+}
 
 const shouldAutoInitializeDatabase =
-  process.env.NODE_ENV !== "production" || process.env.DATABASE_AUTO_INIT === "true"
+  process.env.NODE_ENV !== "production" || String(process.env.DATABASE_AUTO_INIT) === "true"
 const databaseReady = Promise.resolve()
-let initPromise: Promise<void> | null = null
+let libSqlInitPromise: Promise<void> | null = null
+let developmentD1InitPromise: Promise<void> | null = null
 
 export function initDb(): Promise<void> {
   if (!shouldAutoInitializeDatabase) return databaseReady
-  if (initPromise) return initPromise
-  initPromise = _initDb()
-  return initPromise
+
+  const backend = getDatabaseBackend()
+  if (backend.kind === "d1") {
+    // Production auto-init is an emergency fallback. Do not share its I/O
+    // promise across requests; normal deployments should apply migrations.
+    if (process.env.NODE_ENV === "production") {
+      return initializeDatabase(createSqlExecutor(backend))
+    }
+
+    developmentD1InitPromise ??= initializeDatabase(createSqlExecutor(backend))
+    return developmentD1InitPromise
+  }
+
+  libSqlInitPromise ??= initializeDatabase(createSqlExecutor(backend))
+  return libSqlInitPromise
 }
 
-async function _initDb() {
-  await client.executeMultiple(`
+async function initializeDatabase(executor: SqlExecutor) {
+  await executor.executeMultiple(`
     CREATE TABLE IF NOT EXISTS user (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -260,67 +394,67 @@ async function _initDb() {
   `)
 
   await Promise.all([
-    ensureLegacyShortLinkColumns(),
-    ensureLegacyUserColumns(),
-    ensureLegacySiteSettingColumns(),
-    ensureLegacySiteDomainColumns(),
+    ensureLegacyShortLinkColumns(executor),
+    ensureLegacyUserColumns(executor),
+    ensureLegacySiteSettingColumns(executor),
+    ensureLegacySiteDomainColumns(executor),
   ])
 
-  await ensureLegacyShortLinkDomainSlugMigration()
+  await ensureLegacyShortLinkDomainSlugMigration(executor)
 }
 
-async function ensureLegacyShortLinkDomainSlugMigration() {
-  const indexes = await client.execute(`PRAGMA index_list(short_link);`)
+async function ensureLegacyShortLinkDomainSlugMigration(executor: SqlExecutor) {
+  const indexes = await executor.execute(`PRAGMA index_list(short_link);`)
   const rows = indexes.rows as Array<Record<string, unknown>>
   const legacySlugUniqueIndexes = rows.filter((row) => Number(row.unique) === 1)
 
   for (const row of legacySlugUniqueIndexes) {
     const indexName = String(row.name)
-    const indexInfo = await client.execute(`PRAGMA index_info(${indexName});`)
+    const indexInfo = await executor.execute(`PRAGMA index_info(${indexName});`)
     const columns = (indexInfo.rows as Array<Record<string, unknown>>).map((infoRow) => String(infoRow.name))
     if (columns.length === 1 && columns[0] === "slug") {
-      await rebuildLegacyShortLinkTable()
+      await rebuildLegacyShortLinkTable(executor)
       return
     }
   }
 
   const hasDomainSlugIndex = rows.some((row) => String(row.name) === "short_link_domain_slug_idx")
   if (!hasDomainSlugIndex) {
-    await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS short_link_domain_slug_idx ON short_link(domain, slug);")
+    await executor.execute("CREATE UNIQUE INDEX IF NOT EXISTS short_link_domain_slug_idx ON short_link(domain, slug);")
   }
 }
 
-async function ensureLegacyShortLinkColumns() {
+async function ensureLegacyShortLinkColumns(executor: SqlExecutor) {
   await Promise.all([
-    ensureColumn("short_link", "expires_at", "expires_at INTEGER"),
-    ensureColumn("short_link", "max_clicks", "max_clicks INTEGER"),
-    ensureColumn("short_link", "creator_ip", "creator_ip TEXT"),
-    ensureColumn("short_link", "domain", "domain TEXT NOT NULL DEFAULT ''"),
+    ensureColumn(executor, "short_link", "expires_at", "expires_at INTEGER"),
+    ensureColumn(executor, "short_link", "max_clicks", "max_clicks INTEGER"),
+    ensureColumn(executor, "short_link", "creator_ip", "creator_ip TEXT"),
+    ensureColumn(executor, "short_link", "domain", "domain TEXT NOT NULL DEFAULT ''"),
   ])
 }
 
-async function ensureLegacyUserColumns() {
+async function ensureLegacyUserColumns(executor: SqlExecutor) {
   await Promise.all([
-    ensureColumn("user", "banned", "banned INTEGER NOT NULL DEFAULT 0"),
-    ensureColumn("user", "ban_reason", "ban_reason TEXT"),
-    ensureColumn("user", "ban_expires", "ban_expires INTEGER"),
+    ensureColumn(executor, "user", "banned", "banned INTEGER NOT NULL DEFAULT 0"),
+    ensureColumn(executor, "user", "ban_reason", "ban_reason TEXT"),
+    ensureColumn(executor, "user", "ban_expires", "ban_expires INTEGER"),
   ])
 }
 
-async function ensureLegacySiteSettingColumns() {
+async function ensureLegacySiteSettingColumns(executor: SqlExecutor) {
   await Promise.all([
-    ensureColumn("site_setting", "telegram_bot_username", "telegram_bot_username TEXT NOT NULL DEFAULT ''"),
-    ensureColumn("site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
+    ensureColumn(executor, "site_setting", "telegram_bot_username", "telegram_bot_username TEXT NOT NULL DEFAULT ''"),
+    ensureColumn(executor, "site_setting", "user_max_links_per_hour", "user_max_links_per_hour INTEGER NOT NULL DEFAULT 50"),
   ])
 }
 
-async function ensureLegacySiteDomainColumns() {
-  await ensureColumn("site_domain", "short_link_min_slug_length", "short_link_min_slug_length INTEGER NOT NULL DEFAULT 1")
-  await ensureColumn("site_domain", "temp_email_min_local_part_length", "temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1")
+async function ensureLegacySiteDomainColumns(executor: SqlExecutor) {
+  await ensureColumn(executor, "site_domain", "short_link_min_slug_length", "short_link_min_slug_length INTEGER NOT NULL DEFAULT 1")
+  await ensureColumn(executor, "site_domain", "temp_email_min_local_part_length", "temp_email_min_local_part_length INTEGER NOT NULL DEFAULT 1")
 }
 
-async function rebuildLegacyShortLinkTable() {
-  await client.executeMultiple(`
+async function rebuildLegacyShortLinkTable(executor: SqlExecutor) {
+  await executor.executeMultiple(`
     PRAGMA foreign_keys=OFF;
 
     CREATE TABLE IF NOT EXISTS short_link__new (
@@ -374,13 +508,18 @@ async function rebuildLegacyShortLinkTable() {
   `)
 }
 
-async function ensureColumn(table: string, column: string, definition: string) {
-  const result = await client.execute(`PRAGMA table_info(${table});`)
+async function ensureColumn(
+  executor: SqlExecutor,
+  table: string,
+  column: string,
+  definition: string
+) {
+  const result = await executor.execute(`PRAGMA table_info(${table});`)
   const columns = (result.rows as Array<Record<string, unknown>>).map((row) => String(row.name))
 
   if (columns.includes(column)) {
     return
   }
 
-  await client.execute(`ALTER TABLE ${table} ADD COLUMN ${definition};`)
+  await executor.execute(`ALTER TABLE ${table} ADD COLUMN ${definition};`)
 }
