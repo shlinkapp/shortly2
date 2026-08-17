@@ -10,10 +10,6 @@
 !.yarn/releases
 !.yarn/versions
 
-package-lock.json
-bun.lock
-!/bun.lock
-
 # next.js
 /.next/
 /out/
