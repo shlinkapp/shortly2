@@ -11,11 +11,19 @@ const DATABASE_REQUEST_TIMEOUT_MS = Number.parseInt(
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL!,
   authToken: process.env.TURSO_AUTH_TOKEN || undefined,
-  // Bound every libSQL HTTP call with an explicit timeout so a slow/hung Turso
-  // request cannot pin a serverless instance indefinitely.
-  fetch: (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-    const signal = init?.signal ?? AbortSignal.timeout(DATABASE_REQUEST_TIMEOUT_MS)
-    return fetch(input, { ...init, signal })
+  // libSQL supplies a cross-fetch Request, so normalize it before calling Next's
+  // platform fetch and applying the timeout.
+  fetch: async (request: Request) => {
+    const body = request.method === "GET" || request.method === "HEAD"
+      ? undefined
+      : await request.arrayBuffer()
+
+    return fetch(request.url, {
+      method: request.method,
+      headers: [...request.headers],
+      body,
+      signal: AbortSignal.timeout(DATABASE_REQUEST_TIMEOUT_MS),
+    })
   },
 })
 
