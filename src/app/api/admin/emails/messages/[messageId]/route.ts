@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { getAdminTempMessageDetail } from "@/lib/temp-email"
-import { headers } from "next/headers"
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
-    return null
-  }
-  return session
+  return requireActiveAdmin()
 }
 
 export async function GET(

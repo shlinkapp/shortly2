@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { deleteTempMailbox } from "@/lib/temp-email"
 
 export async function DELETE(
@@ -15,8 +15,8 @@ export async function DELETE(
   }
 
   const { id } = await params
-  const success = await deleteTempMailbox(authResult.data.userId, decodeURIComponent(id))
-  await touchApiKeyUsage(authResult.data)
+  const success = await deleteTempMailbox(authResult.data.userId, id)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Mailbox not found" }, { status: 404 })

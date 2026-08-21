@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { isRequestOriginAllowed } from "@/lib/http"
 import { SHORT_LINK_EXPIRES_IN_VALUES } from "@/lib/short-link-expiration"
 import { getSiteSettings } from "@/lib/site-settings"
 import { createShortLink } from "@/lib/shorten"
+import { requireActiveUser } from "@/lib/require-user"
 import { headers } from "next/headers"
 import { z } from "zod"
 
 const shortenRequestSchema = z.object({
-  url: z.string().min(1),
+  url: z.string().min(1).max(2048),
   customSlug: z.string().trim().min(1).max(50).optional(),
   domain: z.string().trim().min(1).max(255).optional(),
   expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
@@ -20,7 +20,7 @@ const shortenRequestSchema = z.object({
 export async function POST(req: NextRequest) {
   await initDb()
   const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
+  const session = await requireActiveUser()
 
   const settings = await getSiteSettings()
 

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
+import { requireActiveUser } from "@/lib/require-user"
 import { createTempMailboxForUser, listTempMailboxesForUser } from "@/lib/temp-email"
 import { parseBoundedInt } from "@/lib/http"
 import { getSiteSettings } from "@/lib/site-settings"
-import { headers } from "next/headers"
 
 async function requireUser() {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await requireActiveUser()
   if (!session) {
     return null
   }

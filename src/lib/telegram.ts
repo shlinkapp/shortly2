@@ -69,6 +69,8 @@ function buildInboundEmailReplyMarkup(messageId?: string): TelegramReplyMarkup |
   }
 }
 
+const TELEGRAM_REQUEST_TIMEOUT_MS = 5000
+
 export async function sendTelegramMessage(chatId: string, text: string, replyMarkup?: TelegramReplyMarkup) {
   const token = getTelegramBotToken()
   if (!token || !chatId.trim()) {
@@ -80,6 +82,9 @@ export async function sendTelegramMessage(chatId: string, text: string, replyMar
     headers: {
       "Content-Type": "application/json",
     },
+    // Bound the call: Telegram being slow must never hang an inbound-email
+    // delivery or a bind request.
+    signal: AbortSignal.timeout(TELEGRAM_REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
       chat_id: chatId,
       text,

@@ -26,7 +26,9 @@ export const session = sqliteTable("session", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-})
+}, (t) => ({
+  userIdIdx: index("session_user_id_idx").on(t.userId),
+}))
 
 export const account = sqliteTable("account", {
   id: text("id").primaryKey(),
@@ -44,7 +46,10 @@ export const account = sqliteTable("account", {
   password: text("password"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-})
+}, (t) => ({
+  userIdIdx: index("account_user_id_idx").on(t.userId),
+  providerAccountIdx: uniqueIndex("account_provider_account_idx").on(t.providerId, t.accountId),
+}))
 
 export const verification = sqliteTable("verification", {
   id: text("id").primaryKey(),
@@ -53,7 +58,10 @@ export const verification = sqliteTable("verification", {
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(unixepoch())`),
-})
+}, (t) => ({
+  identifierIdx: uniqueIndex("verification_identifier_idx").on(t.identifier),
+  expiresAtIdx: index("verification_expires_at_idx").on(t.expiresAt),
+}))
 
 export const passkey = sqliteTable("passkey", {
   id: text("id").primaryKey(),
@@ -69,7 +77,10 @@ export const passkey = sqliteTable("passkey", {
   transports: text("transports"),
   aaguid: text("aaguid"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`),
-})
+}, (t) => ({
+  userIdIdx: index("passkey_user_id_idx").on(t.userId),
+  credentialIdIdx: uniqueIndex("passkey_credential_id_idx").on(t.credentialID),
+}))
 
 export const shortLink = sqliteTable("short_link", {
   id: text("id").primaryKey(),
@@ -119,6 +130,7 @@ export const linkLog = sqliteTable("link_log", {
   linkIdIdx: index("link_log_link_id_idx").on(t.linkId),
   ownerUserIdIdx: index("link_log_owner_user_id_idx").on(t.ownerUserId),
   eventTypeIdx: index("link_log_event_type_idx").on(t.eventType),
+  linkCreatedIdx: index("link_log_link_created_idx").on(t.linkId, t.createdAt),
   createdAtIdx: index("link_log_created_at_idx").on(t.createdAt),
 }))
 
@@ -145,6 +157,12 @@ export const siteDomain = sqliteTable("site_domain", {
   hostIdx: uniqueIndex("site_domain_host_idx").on(t.host),
   shortDomainIdx: index("site_domain_short_idx").on(t.supportsShortLinks, t.isActive),
   emailDomainIdx: index("site_domain_email_idx").on(t.supportsTempEmail, t.isActive),
+  oneDefaultShortDomainIdx: uniqueIndex("site_domain_one_default_short_idx")
+    .on(t.isDefaultShortDomain)
+    .where(sql`${t.isDefaultShortDomain} = 1`),
+  oneDefaultEmailDomainIdx: uniqueIndex("site_domain_one_default_email_idx")
+    .on(t.isDefaultEmailDomain)
+    .where(sql`${t.isDefaultEmailDomain} = 1`),
 }))
 
 export const telegramBinding = sqliteTable("telegram_binding", {
@@ -197,6 +215,8 @@ export const tempEmailMessage = sqliteTable("temp_email_message", {
 }, (t) => ({
   mailboxIdIdx: index("temp_email_message_mailbox_id_idx").on(t.mailboxId),
   messageIdIdx: index("temp_email_message_message_id_idx").on(t.messageId),
+  mailboxMessageIdx: uniqueIndex("temp_email_message_mailbox_message_idx").on(t.mailboxId, t.messageId),
+  mailboxReceivedIdx: index("temp_email_message_mailbox_received_idx").on(t.mailboxId, t.receivedAt),
   receivedAtIdx: index("temp_email_message_received_at_idx").on(t.receivedAt),
 }))
 
@@ -232,6 +252,7 @@ export const tempEmailArchive = sqliteTable("temp_email_archive", {
 }, (t) => ({
   messageIdIdx: index("temp_email_archive_message_id_idx").on(t.messageId),
   toEmailIdx: index("temp_email_archive_to_email_idx").on(t.toEmail),
+  toMessageIdx: uniqueIndex("temp_email_archive_to_message_idx").on(t.toEmail, t.messageId),
   receivedAtIdx: index("temp_email_archive_received_at_idx").on(t.receivedAt),
 }))
 
@@ -262,4 +283,13 @@ export const apiKey = sqliteTable("api_key", {
 }, (t) => ({
   userIdIdx: index("api_key_user_id_idx").on(t.userId),
   keyPrefixIdx: index("api_key_key_prefix_idx").on(t.keyPrefix),
+}))
+
+export const rateLimitWindow = sqliteTable("rate_limit_window", {
+  key: text("key").notNull(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull().default(1),
+}, (t) => ({
+  keyWindowIdx: uniqueIndex("rate_limit_window_key_window_idx").on(t.key, t.windowStart),
+  windowStartIdx: index("rate_limit_window_start_idx").on(t.windowStart),
 }))

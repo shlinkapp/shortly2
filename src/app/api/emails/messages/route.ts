@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { parseBoundedInt } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 import { listTempMessagesForUser } from "@/lib/temp-email"
 
 export async function GET(req: NextRequest) {
   await initDb()
 
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await requireActiveUser()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

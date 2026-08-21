@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, linkLog } from "@/lib/schema"
 import { parseBoundedInt } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 import { and, eq, desc, sql } from "drizzle-orm"
-import { headers } from "next/headers"
 
 function maskIpAddress(ipAddress: string | null) {
   if (!ipAddress) {
@@ -46,7 +45,7 @@ export async function GET(
   { params }: { params: Promise<{ linkId: string }> }
 ) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await requireActiveUser()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

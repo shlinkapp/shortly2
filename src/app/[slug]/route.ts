@@ -2,11 +2,12 @@ import { NextRequest, NextResponse, after } from "next/server"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { getClientIpFromHeaders } from "@/lib/ip"
+import { autoDeleteExpiredLink } from "@/lib/link-cleanup"
 import { createLinkLog } from "@/lib/link-logs"
 import { getLinkStatus } from "@/lib/link-status"
 import { resolveCachedShortLink } from "@/lib/short-link-resolve"
 import { getAllowedShortDomain } from "@/lib/site-domains"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm"
 
 export async function GET(
   req: NextRequest,
@@ -52,18 +53,29 @@ export async function GET(
       eventType: "redirect_blocked_expired",
       statusCode: 410,
     }))
+    after(() => autoDeleteExpiredLink({
+      linkId: link.id,
+      domain: link.domain,
+      slug: link.slug,
+      ownerUserId: link.userId,
+      eventType: "link_auto_deleted_expired",
+    }))
 
     return NextResponse.json({ error: "This link has expired." }, { status: 410 })
   }
 
+  // Column-aware comparison operators put the Date through Drizzle's timestamp
+  // encoder (seconds), matching how `expires_at` is stored. Using a raw
+  // `sql` template with a Date would bind milliseconds and make the
+  // `expires_at > ?` guard false for every link with an expiration.
   const now = new Date()
   const updateResult = await db
     .update(shortLink)
     .set({ clicks: sql`${shortLink.clicks} + 1` })
     .where(and(
       eq(shortLink.id, link.id),
-      sql`(${shortLink.expiresAt} IS NULL OR ${shortLink.expiresAt} > ${now})`,
-      sql`(${shortLink.maxClicks} IS NULL OR ${shortLink.clicks} < ${shortLink.maxClicks})`
+      or(isNull(shortLink.expiresAt), gt(shortLink.expiresAt, now)),
+      or(isNull(shortLink.maxClicks), lt(shortLink.clicks, shortLink.maxClicks))
     ))
     .run()
 
@@ -82,6 +94,13 @@ export async function GET(
         eventType: "redirect_blocked_expired",
         statusCode: 410,
       }))
+      after(() => autoDeleteExpiredLink({
+        linkId: latest.id,
+        domain: latest.domain,
+        slug: latest.slug,
+        ownerUserId: latest.userId,
+        eventType: "link_auto_deleted_expired",
+      }))
       return NextResponse.json({ error: "This link has expired." }, { status: 410 })
     }
 
@@ -90,6 +109,13 @@ export async function GET(
         ...logBase,
         eventType: "redirect_blocked_max_clicks",
         statusCode: 410,
+      }))
+      after(() => autoDeleteExpiredLink({
+        linkId: latest.id,
+        domain: latest.domain,
+        slug: latest.slug,
+        ownerUserId: latest.userId,
+        eventType: "link_auto_deleted_max_clicks",
       }))
       return NextResponse.json(
         { error: "This link reached the click limit." },

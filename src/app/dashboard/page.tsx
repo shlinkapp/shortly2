@@ -1,8 +1,7 @@
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { getAvatarUrl } from "@/lib/gravatar"
+import { requireActiveUser } from "@/lib/require-user"
 import { redirect } from "next/navigation"
-import { headers } from "next/headers"
 import { DashboardClient } from "./dashboard-client"
 
 export const dynamic = "force-dynamic"
@@ -13,7 +12,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ tab?: string }>
 }) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await requireActiveUser()
   if (!session) redirect("/")
 
   const user = {

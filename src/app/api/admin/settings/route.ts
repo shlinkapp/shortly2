@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { isRequestOriginAllowed, normalizeBaseUrl } from "@/lib/http"
 import { reportDiagnostic } from "@/lib/observability"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { getSiteSettings, writeSiteSettings } from "@/lib/site-settings"
-import { headers } from "next/headers"
 import { z } from "zod"
 
 const optionalPositiveInt = z.preprocess(
@@ -41,11 +40,7 @@ function normalizeTelegramBotUsername(input: string | undefined): string | undef
 }
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
-    return null
-  }
-  return session
+  return requireActiveAdmin()
 }
 
 export async function GET() {

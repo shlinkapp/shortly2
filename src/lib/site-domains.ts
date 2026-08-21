@@ -18,8 +18,8 @@ type ActiveEmailDomain = {
 }
 
 type SiteDomainDefaultsInput = {
-  isDefaultShortDomain: boolean
-  isDefaultEmailDomain: boolean
+  isDefaultShortDomain?: boolean
+  isDefaultEmailDomain?: boolean
 }
 
 type CreateSiteDomainRecordInput = {
@@ -35,7 +35,7 @@ type CreateSiteDomainRecordInput = {
   createdAt: Date
 }
 
-type UpdateSiteDomainRecordInput = {
+type UpdateSiteDomainRecordInput = Partial<{
   host: string
   supportsShortLinks: boolean
   shortLinkMinSlugLength: number
@@ -44,7 +44,7 @@ type UpdateSiteDomainRecordInput = {
   isActive: boolean
   isDefaultShortDomain: boolean
   isDefaultEmailDomain: boolean
-}
+}>
 
 type SiteDomainWriter = Pick<typeof db, "insert" | "select" | "update">
 

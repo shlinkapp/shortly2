@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { createTempMailboxForUser } from "@/lib/temp-email"
 import { generateRandomEmailPrefix } from "@/lib/random-email-prefix"
 import { getAllowedEmailDomain } from "@/lib/site-domains"
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    await touchApiKeyUsage(authResult.data)
+    scheduleApiKeyUsageTouch(authResult.data)
     return addyJson({
       data: {
         id: result.data.id,

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink, linkLog } from "@/lib/schema"
 import { desc, eq, sql } from "drizzle-orm"
@@ -8,14 +7,15 @@ import { createLinkLog } from "@/lib/link-logs"
 import { revalidateShortLinkCache } from "@/lib/cache/revalidate"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { isRequestOriginAllowed, parseBoundedInt } from "@/lib/http"
+import { requireActiveAdmin } from "@/lib/require-user"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
+  const session = await requireActiveAdmin()
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -56,8 +56,8 @@ export async function DELETE(
 ) {
   await initDb()
   const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
+  const session = await requireActiveAdmin()
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isRequestOriginAllowed(headersList)) {
@@ -71,18 +71,25 @@ export async function DELETE(
   }
 
   const ip = getClientIpFromHeaders(headersList)
-  await createLinkLog({
-    linkId: link.id,
-    linkSlug: link.slug,
-    ownerUserId: link.userId,
-    eventType: "link_manual_deleted_by_admin",
-    referrer: headersList.get("referer"),
-    userAgent: headersList.get("user-agent"),
-    ipAddress: ip,
-    statusCode: 200,
+
+  await db.transaction(async (tx) => {
+    await createLinkLog(
+      {
+        linkId: link.id,
+        linkSlug: link.slug,
+        ownerUserId: link.userId,
+        eventType: "link_manual_deleted_by_admin",
+        referrer: headersList.get("referer"),
+        userAgent: headersList.get("user-agent"),
+        ipAddress: ip,
+        statusCode: 200,
+      },
+      tx
+    )
+
+    await tx.delete(shortLink).where(eq(shortLink.id, id))
   })
 
-  await db.delete(shortLink).where(eq(shortLink.id, id))
   revalidateShortLinkCache(link.domain, link.slug)
   return NextResponse.json({ success: true })
 }

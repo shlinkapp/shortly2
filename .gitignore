@@ -44,7 +44,8 @@ next-env.d.ts
 *.db-wal
 
 # drizzle
-/drizzle
+# NOTE: migrations are intentionally versioned so schema changes stay auditable.
+# /drizzle
 
 # wrangler
 .cf-email-forwarding-worker/wrangler.jsonc

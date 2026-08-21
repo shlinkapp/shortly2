@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { createTempMailboxForUser, listTempMailboxesForUser } from "@/lib/temp-email"
 import { parseBoundedInt } from "@/lib/http"
 import { getSiteSettings } from "@/lib/site-settings"
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const limit = parseBoundedInt(searchParams.get("limit") ?? searchParams.get("size"), 10, 1, 100)
 
   const result = await listTempMailboxesForUser(authResult.data.userId, page, limit)
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
   return NextResponse.json(result)
 }
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const result = await createTempMailboxForUser(authResult.data.userId, emailAddress, {
     hourlyCreateLimit: settings?.userMaxLinksPerHour ?? 50,
   })
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status })

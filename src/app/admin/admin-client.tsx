@@ -172,8 +172,7 @@ interface AdminMailboxMessage {
   from: string;
   fromName: string | null;
   subject: string;
-  text: string;
-  html: string;
+  preview: string;
   receivedAt: string | number;
   isRead: boolean;
   hasAttachments: boolean;
@@ -186,8 +185,7 @@ interface ArchivedInboundEmail {
   from: string;
   fromName: string | null;
   subject: string;
-  text: string;
-  html: string;
+  preview: string;
   receivedAt: string | number;
   failureReason: string;
   hasAttachments: boolean;
@@ -445,6 +443,11 @@ export function AdminClient({ user }: AdminClientProps) {
   const [linksTotal, setLinksTotal] = useState(0);
   const [linksTotalPages, setLinksTotalPages] = useState(1);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersPage, setUsersPage] = useState(
+    () => getPositiveAdminPage(searchParams.get("usersPage")) ?? 1,
+  );
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
   const [domains, setDomains] = useState<SiteDomain[]>([]);
   const [mailboxes, setMailboxes] = useState<AdminMailbox[]>([]);
   const [messages, setMessages] = useState<AdminMailboxMessage[]>([]);
@@ -532,6 +535,7 @@ export function AdminClient({ user }: AdminClientProps) {
     (next: {
       tab?: string;
       linksPage?: number;
+      usersPage?: number;
       emailSearch?: string;
       mailboxesPage?: number;
       messagesPage?: number;
@@ -541,6 +545,7 @@ export function AdminClient({ user }: AdminClientProps) {
       const params = new URLSearchParams(currentSearch);
       const nextTab = next.tab ? getAdminTab(next.tab) : activeTab;
       const nextLinksPage = next.linksPage ?? linksPage;
+      const nextUsersPage = next.usersPage ?? usersPage;
       const nextEmailSearch = next.emailSearch ?? emailSearch;
       const nextMailboxesPage = next.mailboxesPage ?? mailboxesPage;
       const nextMessagesPage = next.messagesPage ?? messagesPage;
@@ -557,6 +562,12 @@ export function AdminClient({ user }: AdminClientProps) {
         params.set("linksPage", String(nextLinksPage));
       } else {
         params.delete("linksPage");
+      }
+
+      if (nextUsersPage > 1) {
+        params.set("usersPage", String(nextUsersPage));
+      } else {
+        params.delete("usersPage");
       }
 
       if (nextEmailSearch.trim()) {
@@ -603,6 +614,7 @@ export function AdminClient({ user }: AdminClientProps) {
       messagesPage,
       pathname,
       router,
+      usersPage,
     ],
   );
 
@@ -616,7 +628,7 @@ export function AdminClient({ user }: AdminClientProps) {
         const [linksRes, usersRes, settingsRes, domainsRes] = await Promise.all(
           [
             fetch(`/api/admin/links?page=${linksPage}&limit=${linksLimit}`),
-            fetch("/api/admin/users"),
+            fetch(`/api/admin/users?page=${usersPage}&limit=${ADMIN_PAGE_SIZE}`),
             fetch("/api/admin/settings"),
             fetch("/api/admin/domains"),
           ],
@@ -644,7 +656,11 @@ export function AdminClient({ user }: AdminClientProps) {
         setLinksTotal(body.total || 0);
         setLinksTotalPages(body.totalPages || 1);
 
-        setUsers(await usersRes.json());
+        const usersBody = (await usersRes.json()) as PaginatedResponse<AdminUser>;
+        setUsers(usersBody.data || []);
+        setUsersPage(usersBody.page || 1);
+        setUsersTotal(usersBody.total || 0);
+        setUsersTotalPages(usersBody.totalPages || 1);
 
         const s = await settingsRes.json();
         setSettings({
@@ -667,7 +683,7 @@ export function AdminClient({ user }: AdminClientProps) {
         setLoading(false);
       }
     },
-    [linksLimit, linksPage],
+    [linksLimit, linksPage, usersPage],
   );
 
   const fetchEmailData = useCallback(
@@ -1193,8 +1209,8 @@ export function AdminClient({ user }: AdminClientProps) {
     });
   }
 
-  function getEmailPreview(text: string, html: string) {
-    return (text || html || "").replace(/\s+/g, " ").trim() || "无正文";
+  function getEmailPreview(preview: string) {
+    return preview?.trim() || "无正文";
   }
 
   function getMailboxOwnerLabel(item: {
@@ -2219,7 +2235,7 @@ export function AdminClient({ user }: AdminClientProps) {
                       </div>
                     </div>
                     <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                      {getEmailPreview(message.text, message.html)}
+                      {getEmailPreview(message.preview)}
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="break-all font-mono">
@@ -2275,7 +2291,7 @@ export function AdminClient({ user }: AdminClientProps) {
                     </div>
                   </div>
                   <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                    {getEmailPreview(archive.text, archive.html)}
+                    {getEmailPreview(archive.preview)}
                   </p>
                   <p className="mt-3 text-xs text-muted-foreground">
                     {formatDate(archive.receivedAt)}
@@ -2680,6 +2696,41 @@ export function AdminClient({ user }: AdminClientProps) {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {usersTotalPages > 1 && !dataError && (
+                    <div className="mt-4 flex items-center justify-between border-t pt-4">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        共 {usersTotal} 个用户 · 页码 {usersPage} / {usersTotalPages}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          disabled={usersPage <= 1 || loading}
+                          onClick={() => {
+                            const nextPage = Math.max(1, usersPage - 1);
+                            setUsersPage(nextPage);
+                            replaceUrlState({ usersPage: nextPage });
+                          }}
+                        >
+                          上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          disabled={usersPage >= usersTotalPages || loading}
+                          onClick={() => {
+                            const nextPage = Math.min(usersTotalPages, usersPage + 1);
+                            setUsersPage(nextPage);
+                            replaceUrlState({ usersPage: nextPage });
+                          }}
+                        >
+                          下一页
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>

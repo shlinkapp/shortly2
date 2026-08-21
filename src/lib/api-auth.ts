@@ -1,5 +1,7 @@
 import { and, eq, isNull, lte, or } from "drizzle-orm"
+import { after } from "next/server"
 import { db } from "@/lib/db"
+import { reportDiagnostic } from "@/lib/observability"
 import { apiKey, user } from "@/lib/schema"
 import {
   API_KEY_USAGE_WRITE_INTERVAL_MS,
@@ -63,4 +65,31 @@ export async function touchApiKeyUsage(key: { id: string; userId: string; lastUs
         or(isNull(apiKey.lastUsedAt), lte(apiKey.lastUsedAt, staleBefore))
       )
     )
+}
+
+/**
+ * Record API key usage after the response is sent. `last_used_at` is telemetry,
+ * not part of the business result: a failure here must never turn a successful
+ * create/list into a 5xx (which would cause clients to retry and duplicate
+ * work).
+ */
+export function scheduleApiKeyUsageTouch(key: { id: string; userId: string; lastUsedAt: Date | null }) {
+  const run = () =>
+    touchApiKeyUsage(key).catch((error) => {
+      reportDiagnostic({
+        scope: "api_key",
+        event: "usage_touch_failed",
+        details: { keyId: key.id, userId: key.userId },
+        error,
+        level: "warn",
+      })
+    })
+
+  try {
+    after(run)
+  } catch {
+    // Not inside a request scope (e.g. a background worker): fall back to a
+    // fire-and-forget write.
+    void run()
+  }
 }

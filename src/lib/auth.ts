@@ -39,6 +39,11 @@ if (resendApiKey) {
       },
       otpLength: 6,
       expiresIn: 600,
+      // Never persist the plaintext OTP: a database leak must not allow account
+      // takeover. `hashed` stores a one-way hash of the code instead. Existing
+      // plaintext rows must be purged before rollout (see the versioned
+      // migration for `verification`).
+      storeOTP: "hashed",
     })
   )
 }
@@ -57,6 +62,10 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   database: drizzleAdapter(db, {
     provider: "sqlite",
+    // Run Better Auth's multi-step writes (OAuth user + account, OTP user +
+    // session, passkey counter + session + challenge) inside DB transactions so
+    // a partial failure cannot leave half-created auth rows behind.
+    transaction: true,
     schema: {
       user: schema.user,
       session: schema.session,
@@ -65,6 +74,10 @@ export const auth = betterAuth({
       passkey: schema.passkey,
     },
   }),
+  account: {
+    // OAuth provider tokens are secrets: never store them in plaintext.
+    encryptOAuthTokens: true,
+  },
   emailAndPassword: {
     enabled: false,
   },
@@ -107,15 +120,15 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        after: async (user) => {
+        // Promote bootstrap admins in the same insert that creates the user:
+        // an `after` hook would need a second write and silently fail to
+        // promote on a transient error after the user row already exists.
+        before: async (user) => {
           if (!bootstrapAdminEmails.has(user.email.trim().toLowerCase())) {
             return
           }
 
-          await db
-            .update(schema.user)
-            .set({ role: "admin" })
-            .where(eq(schema.user.id, user.id))
+          return { data: { ...user, role: "admin" } }
         },
       },
     },

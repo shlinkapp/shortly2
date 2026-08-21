@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { parseBoundedInt } from "@/lib/http"
 import { listLinksForUser } from "@/lib/links"
 
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const limit = parseBoundedInt(searchParams.get("limit"), 10, 1, 100)
   const result = await listLinksForUser(authResult.data.userId, page, limit)
 
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   return NextResponse.json(result)
 }

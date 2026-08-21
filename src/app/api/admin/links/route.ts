@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { parseBoundedInt } from "@/lib/http"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { listAdminLinks } from "@/lib/admin-links"
-import { headers } from "next/headers"
 
 export async function GET(req: NextRequest) {
   await initDb()
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
+  const session = await requireActiveAdmin()
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

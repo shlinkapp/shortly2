@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
+import { isUniqueConstraintError } from "@/lib/db-errors"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { parseDomainHost, writeDeletedSiteDomain, writeUpdatedSiteDomain } from "@/lib/site-domains"
 import { eq } from "drizzle-orm"
-import { headers } from "next/headers"
 import { z } from "zod"
 
 const updateDomainSchema = z.object({
@@ -20,11 +20,7 @@ const updateDomainSchema = z.object({
 })
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
-    return null
-  }
-  return session
+  return requireActiveAdmin()
 }
 
 export async function PATCH(
@@ -56,47 +52,60 @@ export async function PATCH(
     return NextResponse.json({ error: "Domain not found" }, { status: 404 })
   }
 
-  const normalizedHost = parsed.data.host === undefined ? existing.host : parseDomainHost(parsed.data.host)
-  if (!normalizedHost) {
-    return NextResponse.json({ error: "Invalid domain host" }, { status: 400 })
+  // Update only the fields present in the request body: two concurrent PATCHes
+  // editing different fields must not overwrite each other's changes (lost
+  // update) by re-writing the whole row from a stale read.
+  const changes: Parameters<typeof writeUpdatedSiteDomain>[1] = {}
+  if (parsed.data.host !== undefined) {
+    const normalizedHost = parseDomainHost(parsed.data.host)
+    if (!normalizedHost) {
+      return NextResponse.json({ error: "Invalid domain host" }, { status: 400 })
+    }
+    changes.host = normalizedHost
+  }
+  if (parsed.data.supportsShortLinks !== undefined) changes.supportsShortLinks = parsed.data.supportsShortLinks
+  if (parsed.data.supportsTempEmail !== undefined) changes.supportsTempEmail = parsed.data.supportsTempEmail
+  if (parsed.data.shortLinkMinSlugLength !== undefined) changes.shortLinkMinSlugLength = parsed.data.shortLinkMinSlugLength
+  if (parsed.data.tempEmailMinLocalPartLength !== undefined) changes.tempEmailMinLocalPartLength = parsed.data.tempEmailMinLocalPartLength
+  if (parsed.data.isActive !== undefined) changes.isActive = parsed.data.isActive
+  if (parsed.data.isDefaultShortDomain !== undefined) changes.isDefaultShortDomain = parsed.data.isDefaultShortDomain
+  if (parsed.data.isDefaultEmailDomain !== undefined) changes.isDefaultEmailDomain = parsed.data.isDefaultEmailDomain
+
+  if (Object.keys(changes).length === 0) {
+    return NextResponse.json({ error: "No fields to update" }, { status: 400 })
   }
 
-  const nextSupportsShortLinks = parsed.data.supportsShortLinks ?? existing.supportsShortLinks
-  const nextSupportsTempEmail = parsed.data.supportsTempEmail ?? existing.supportsTempEmail
-  const nextShortLinkMinSlugLength = nextSupportsShortLinks
-    ? (parsed.data.shortLinkMinSlugLength ?? existing.shortLinkMinSlugLength)
-    : 1
-  const nextTempEmailMinLocalPartLength = nextSupportsTempEmail
-    ? (parsed.data.tempEmailMinLocalPartLength ?? existing.tempEmailMinLocalPartLength)
-    : 1
-  const nextIsActive = parsed.data.isActive ?? existing.isActive
-  const nextIsDefaultShortDomain = parsed.data.isDefaultShortDomain ?? existing.isDefaultShortDomain
-  const nextIsDefaultEmailDomain = parsed.data.isDefaultEmailDomain ?? existing.isDefaultEmailDomain
+  const nextSupportsShortLinks = changes.supportsShortLinks ?? existing.supportsShortLinks
+  const nextSupportsTempEmail = changes.supportsTempEmail ?? existing.supportsTempEmail
+  const nextIsActive = changes.isActive ?? existing.isActive
 
-  if (nextIsDefaultShortDomain && (!nextSupportsShortLinks || !nextIsActive)) {
+  if (changes.isDefaultShortDomain && (!nextSupportsShortLinks || !nextIsActive)) {
     return NextResponse.json({ error: "Default short-link domain must be active and support short links" }, { status: 400 })
   }
 
-  if (nextIsDefaultEmailDomain && (!nextSupportsTempEmail || !nextIsActive)) {
+  if (changes.isDefaultEmailDomain && (!nextSupportsTempEmail || !nextIsActive)) {
     return NextResponse.json({ error: "Default email domain must be active and support temp email" }, { status: 400 })
   }
 
-  const duplicate = await db.select({ id: siteDomain.id }).from(siteDomain).where(eq(siteDomain.host, normalizedHost)).get()
-  if (duplicate && duplicate.id !== id) {
-    return NextResponse.json({ error: "Domain already exists" }, { status: 409 })
+  if (changes.host) {
+    const duplicate = await db.select({ id: siteDomain.id }).from(siteDomain).where(eq(siteDomain.host, changes.host)).get()
+    if (duplicate && duplicate.id !== id) {
+      return NextResponse.json({ error: "Domain already exists" }, { status: 409 })
+    }
   }
 
-  const updated = await writeUpdatedSiteDomain(id, {
-    host: normalizedHost,
-    supportsShortLinks: nextSupportsShortLinks,
-    shortLinkMinSlugLength: nextShortLinkMinSlugLength,
-    supportsTempEmail: nextSupportsTempEmail,
-    tempEmailMinLocalPartLength: nextTempEmailMinLocalPartLength,
-    isActive: nextIsActive,
-    isDefaultShortDomain: nextIsDefaultShortDomain,
-    isDefaultEmailDomain: nextIsDefaultEmailDomain,
-  })
-  return NextResponse.json({ data: updated })
+  try {
+    const updated = await writeUpdatedSiteDomain(id, changes)
+    return NextResponse.json({ data: updated })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: "Another domain is already the default for this type" },
+        { status: 409 }
+      )
+    }
+    throw error
+  }
 }
 
 export async function DELETE(

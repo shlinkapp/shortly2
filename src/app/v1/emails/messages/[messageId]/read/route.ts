@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { markTempMessageRead } from "@/lib/temp-email"
 
 export async function POST(
@@ -16,7 +16,7 @@ export async function POST(
 
   const { messageId } = await params
   const success = await markTempMessageRead(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })

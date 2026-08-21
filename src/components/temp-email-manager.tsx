@@ -55,8 +55,7 @@ interface MessageRecord {
   from: string
   fromName: string | null
   subject: string
-  text: string
-  html: string
+  preview: string
   receivedAt: string | number
   isRead: boolean
   hasAttachments: boolean
@@ -292,7 +291,7 @@ function formatAttachmentSize(size: number) {
 }
 
 function getMessagePreview(message: MessageRecord) {
-  return (message.text || message.html || "").replace(/\s+/g, " ") || "无正文"
+  return message.preview?.trim() || "无正文"
 }
 
 function getMessageTitle(message: Pick<MessageRecord, "subject"> | Pick<MessageDetailRecord, "subject">) {

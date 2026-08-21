@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { apiKey } from "@/lib/schema"
 import { and, eq } from "drizzle-orm"
-import { headers } from "next/headers"
 import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 
 async function requireUserSession() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) return null
-  return session
+  return requireActiveUser()
 }
 
 export async function DELETE(

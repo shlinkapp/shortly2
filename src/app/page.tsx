@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button"
 import { LandingShortenerPreview } from "@/components/landing-shortener-preview"
 import { UserMenu } from "@/components/user-menu"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
 import { getAvatarUrl } from "@/lib/gravatar"
 import { resolveCanonicalAppUrl } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 import { getSiteSettings } from "@/lib/site-settings"
 import { headers } from "next/headers"
 import Link from "next/link"
@@ -59,7 +59,7 @@ export default async function HomePage({
   await initDb()
   const [settings, session] = await Promise.all([
     getSiteSettings(),
-    auth.api.getSession({ headers: headersList }),
+    requireActiveUser(),
   ])
   const siteName = settings?.siteName?.trim() || "Shortly"
   const user = session?.user

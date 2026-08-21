@@ -1,5 +1,7 @@
 import { and, desc, eq, like, or, sql } from "drizzle-orm"
+import { after } from "next/server"
 import { db } from "@/lib/db"
+import { isUniqueConstraintError } from "@/lib/db-errors"
 import {
   telegramBinding,
   tempMailbox,
@@ -11,6 +13,7 @@ import {
 } from "@/lib/schema"
 import { getAllowedEmailDomain, parseDomainHost } from "@/lib/site-domains"
 import { reportDiagnostic } from "@/lib/observability"
+import { consumeRateLimit } from "@/lib/rate-limit"
 import { sendInboundEmailTelegramNotification } from "@/lib/telegram"
 import { isBlockedTempEmailPrefix } from "@/lib/temp-email-prefix"
 
@@ -54,7 +57,16 @@ export function parseEmailAddress(value: string): { localPart: string; domain: s
 
 function buildSearchTerm(search?: string | null) {
   const value = search?.trim().toLowerCase()
-  return value ? `%${value}%` : null
+  if (!value) return null
+  // Cap search length: unbounded `%term%` scans are already expensive, and a
+  // giant search term only makes them worse.
+  return `%${value.slice(0, 100)}%`
+}
+
+function buildEmailPreview(text: string | null | undefined, html: string | null | undefined, maxLength = 200) {
+  const source = text?.trim() || html?.replace(/<[^>]+>/g, " ") || ""
+  const collapsed = source.replace(/\s+/g, " ").trim()
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 3)}...` : collapsed
 }
 
 type InboundAttachment = {
@@ -87,7 +99,7 @@ type InboundMailboxRecord = {
 
 type InboundEmailContext = {
   toEmail: string
-  normalizedMessageId: string | null
+  normalizedMessageId: string
   attachments: InboundAttachment[]
   receivedAt: Date
 }
@@ -161,10 +173,26 @@ function normalizeReceivedAt(value?: string) {
   return Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt
 }
 
-function buildInboundEmailContext(payload: InboundEmailPayload): InboundEmailContext {
+async function computeFallbackMessageId(payload: InboundEmailPayload): Promise<string> {
+  const source = [payload.from, payload.to, payload.subject, payload.date]
+    .map((part) => part ?? "")
+    .join("\u0000")
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source))
+  const hex = Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+  return `sha256:${hex.slice(0, 32)}`
+}
+
+async function buildInboundEmailContext(payload: InboundEmailPayload): Promise<InboundEmailContext> {
+  // Emails without a Message-ID get a deterministic fallback key derived from
+  // from/to/subject/date so retries still deduplicate (the unique index treats
+  // NULL as distinct, so an empty messageId could never collide).
+  const normalizedMessageId = payload.messageId?.trim() || (await computeFallbackMessageId(payload))
+
   return {
     toEmail: payload.to.trim().toLowerCase(),
-    normalizedMessageId: payload.messageId?.trim() || null,
+    normalizedMessageId,
     attachments: normalizeAttachments(payload),
     receivedAt: normalizeReceivedAt(payload.date),
   }
@@ -181,12 +209,18 @@ function buildStoredAttachment(attachment: InboundAttachment) {
   }
 }
 
-async function insertEmailAttachments(messageId: string, attachments: InboundAttachment[]) {
+type TempEmailTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function insertEmailAttachments(
+  tx: TempEmailTransaction,
+  messageId: string,
+  attachments: InboundAttachment[]
+) {
   if (attachments.length === 0) {
     return
   }
 
-  await db.insert(tempEmailAttachment).values(
+  await tx.insert(tempEmailAttachment).values(
     attachments.map((attachment) => ({
       ...buildStoredAttachment(attachment),
       messageId,
@@ -202,11 +236,7 @@ async function findInboundMailbox(toEmail: string) {
     .get()
 }
 
-async function findDuplicateArchivedInboundEmail(toEmail: string, normalizedMessageId: string | null) {
-  if (!normalizedMessageId) {
-    return null
-  }
-
+async function findDuplicateArchivedInboundEmail(toEmail: string, normalizedMessageId: string) {
   return db
     .select({ id: tempEmailArchive.id })
     .from(tempEmailArchive)
@@ -214,11 +244,7 @@ async function findDuplicateArchivedInboundEmail(toEmail: string, normalizedMess
     .get()
 }
 
-async function findDuplicateMailboxMessage(mailboxId: string, normalizedMessageId: string | null) {
-  if (!normalizedMessageId) {
-    return null
-  }
-
+async function findDuplicateMailboxMessage(mailboxId: string, normalizedMessageId: string) {
   return db
     .select({ id: tempEmailMessage.id })
     .from(tempEmailMessage)
@@ -227,32 +253,55 @@ async function findDuplicateMailboxMessage(mailboxId: string, normalizedMessageI
 }
 
 async function archiveInboundEmail(payload: InboundEmailPayload, context: InboundEmailContext) {
-  const duplicateArchive = await findDuplicateArchivedInboundEmail(context.toEmail, context.normalizedMessageId)
+  try {
+    // Message + attachments are written in one transaction; the unique index on
+    // (to_email, message_id) is the concurrency backstop for the read-then-insert.
+    const result = await db.transaction(async (tx) => {
+      const duplicate = await tx
+        .select({ id: tempEmailArchive.id })
+        .from(tempEmailArchive)
+        .where(and(
+          eq(tempEmailArchive.toEmail, context.toEmail),
+          eq(tempEmailArchive.messageId, context.normalizedMessageId)
+        ))
+        .get()
 
-  if (duplicateArchive) {
-    return { data: { archiveId: duplicateArchive.id, duplicated: true, archived: true } }
+      if (duplicate) {
+        return { archiveId: duplicate.id, duplicated: true }
+      }
+
+      const archiveId = crypto.randomUUID()
+      await tx.insert(tempEmailArchive).values({
+        id: archiveId,
+        toEmail: context.toEmail,
+        messageId: context.normalizedMessageId,
+        from: payload.from,
+        fromName: payload.fromName?.trim() || null,
+        subject: payload.subject?.trim() || "",
+        text: payload.text || "",
+        html: payload.html || "",
+        receivedAt: context.receivedAt,
+        ccJson: payload.cc || "[]",
+        replyToJson: payload.replyTo || "[]",
+        headersJson: payload.headers || "[]",
+        failureReason: "mailbox_not_found",
+        createdAt: new Date(),
+      })
+      await insertArchiveAttachments(tx, archiveId, context.attachments)
+
+      return { archiveId, duplicated: false }
+    })
+
+    return { data: { archiveId: result.archiveId, duplicated: result.duplicated, archived: true } }
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const duplicate = await findDuplicateArchivedInboundEmail(context.toEmail, context.normalizedMessageId)
+      if (duplicate) {
+        return { data: { archiveId: duplicate.id, duplicated: true, archived: true } }
+      }
+    }
+    throw error
   }
-
-  const archiveId = crypto.randomUUID()
-  await db.insert(tempEmailArchive).values({
-    id: archiveId,
-    toEmail: context.toEmail,
-    messageId: context.normalizedMessageId,
-    from: payload.from,
-    fromName: payload.fromName?.trim() || null,
-    subject: payload.subject?.trim() || "",
-    text: payload.text || "",
-    html: payload.html || "",
-    receivedAt: context.receivedAt,
-    ccJson: payload.cc || "[]",
-    replyToJson: payload.replyTo || "[]",
-    headersJson: payload.headers || "[]",
-    failureReason: "mailbox_not_found",
-    createdAt: new Date(),
-  })
-  await insertArchiveAttachments(archiveId, context.attachments)
-
-  return { data: { archiveId, duplicated: false, archived: true } }
 }
 
 async function deliverInboundEmailToMailbox(
@@ -260,41 +309,112 @@ async function deliverInboundEmailToMailbox(
   payload: InboundEmailPayload,
   context: InboundEmailContext
 ) {
-  const duplicate = await findDuplicateMailboxMessage(mailbox.id, context.normalizedMessageId)
+  let delivered: { messageRowId: string; duplicated: boolean }
 
-  if (duplicate) {
-    return { data: { mailboxId: mailbox.id, messageId: duplicate.id, duplicated: true, archived: false } }
+  try {
+    const result = await db.transaction(async (tx) => {
+      const duplicate = await tx
+        .select({ id: tempEmailMessage.id })
+        .from(tempEmailMessage)
+        .where(and(
+          eq(tempEmailMessage.mailboxId, mailbox.id),
+          eq(tempEmailMessage.messageId, context.normalizedMessageId)
+        ))
+        .get()
+
+      if (duplicate) {
+        return { messageRowId: duplicate.id, duplicated: true }
+      }
+
+      const messageRowId = crypto.randomUUID()
+      await tx.insert(tempEmailMessage).values({
+        id: messageRowId,
+        mailboxId: mailbox.id,
+        messageId: context.normalizedMessageId,
+        from: payload.from,
+        fromName: payload.fromName?.trim() || null,
+        subject: payload.subject?.trim() || "",
+        text: payload.text || "",
+        html: payload.html || "",
+        receivedAt: context.receivedAt,
+        isRead: false,
+        ccJson: payload.cc || "[]",
+        replyToJson: payload.replyTo || "[]",
+        headersJson: payload.headers || "[]",
+        createdAt: new Date(),
+      })
+      await insertEmailAttachments(tx, messageRowId, context.attachments)
+
+      return { messageRowId, duplicated: false }
+    })
+
+    delivered = result
+  } catch (error) {
+    // A concurrent delivery of the same message may have won the race against
+    // our unique index: fall back to a read and report it as a duplicate
+    // instead of surfacing a 5xx to the worker.
+    if (isUniqueConstraintError(error)) {
+      const duplicate = await findDuplicateMailboxMessage(mailbox.id, context.normalizedMessageId)
+      if (duplicate) {
+        return { data: { mailboxId: mailbox.id, messageId: duplicate.id, duplicated: true, archived: false } }
+      }
+    }
+    throw error
   }
 
-  const messageRowId = crypto.randomUUID()
-  await db.insert(tempEmailMessage).values({
-    id: messageRowId,
-    mailboxId: mailbox.id,
-    messageId: context.normalizedMessageId,
-    from: payload.from,
-    fromName: payload.fromName?.trim() || null,
-    subject: payload.subject?.trim() || "",
-    text: payload.text || "",
-    html: payload.html || "",
-    receivedAt: context.receivedAt,
-    isRead: false,
-    ccJson: payload.cc || "[]",
-    replyToJson: payload.replyTo || "[]",
-    headersJson: payload.headers || "[]",
-    createdAt: new Date(),
-  })
-  await insertEmailAttachments(messageRowId, context.attachments)
-  await notifyMailboxOwnerOnTelegram(mailbox, payload, context.attachments, messageRowId)
+  if (!delivered.duplicated) {
+    scheduleTelegramNotification(mailbox, payload, context.attachments, delivered.messageRowId)
+  }
 
-  return { data: { mailboxId: mailbox.id, messageId: messageRowId, duplicated: false, archived: false } }
+  return {
+    data: {
+      mailboxId: mailbox.id,
+      messageId: delivered.messageRowId,
+      duplicated: delivered.duplicated,
+      archived: false,
+    },
+  }
 }
 
-async function insertArchiveAttachments(archiveId: string, attachments: InboundAttachment[]) {
+function scheduleTelegramNotification(
+  mailbox: { userId: string; emailAddress: string },
+  payload: InboundEmailPayload,
+  attachments: InboundAttachment[],
+  messageRowId: string
+) {
+  const run = () =>
+    notifyMailboxOwnerOnTelegram(mailbox, payload, attachments, messageRowId).catch((error) => {
+      reportTempEmailError(
+        "telegram_notification_failed_async",
+        {
+          userId: mailbox.userId,
+          emailAddress: mailbox.emailAddress,
+          messageId: payload.messageId?.trim() || null,
+        },
+        error
+      )
+    })
+
+  try {
+    // Run after the response is sent so a slow Telegram call never blocks the
+    // inbound delivery (the worker itself would otherwise time out and retry).
+    after(run)
+  } catch {
+    // Outside a request scope (e.g. a test or background job): fire and forget.
+    void run()
+  }
+}
+
+async function insertArchiveAttachments(
+  tx: TempEmailTransaction,
+  archiveId: string,
+  attachments: InboundAttachment[]
+) {
   if (attachments.length === 0) {
     return
   }
 
-  await db.insert(tempEmailArchiveAttachment).values(
+  await tx.insert(tempEmailArchiveAttachment).values(
     attachments.map((attachment) => ({
       ...buildStoredAttachment(attachment),
       archiveId,
@@ -391,18 +511,10 @@ export async function createTempMailboxForUser(
     ? Math.max(1, Math.floor(options?.hourlyCreateLimit ?? 1))
     : null
   if (normalizedHourlyLimit) {
-    const oneHourAgoInSeconds = Math.floor((Date.now() - 60 * 60 * 1000) / 1000)
-    const recentMailboxes = await db.select({ count: sql<number>`count(*)` })
-      .from(tempMailbox)
-      .where(
-        and(
-          eq(tempMailbox.userId, userId),
-          sql`${tempMailbox.createdAt} >= ${oneHourAgoInSeconds}`
-        )
-      )
-      .get()
-
-    if ((recentMailboxes?.count ?? 0) >= normalizedHourlyLimit) {
+    // Atomic fixed-window counter: concurrent create requests cannot all pass
+    // the limit check the way a read-then-insert count would allow.
+    const rateLimitResult = await consumeRateLimit(`mailbox:create:${userId}`, normalizedHourlyLimit)
+    if (!rateLimitResult.success) {
       return {
         error: `每小时最多创建 ${normalizedHourlyLimit} 个临时邮箱，请稍后再试`,
         status: 429 as const,
@@ -412,15 +524,24 @@ export async function createTempMailboxForUser(
 
   const id = crypto.randomUUID()
   const createdAt = new Date()
-  await db.insert(tempMailbox).values({
-    id,
-    userId,
-    emailAddress: finalEmailAddress,
-    localPart: parsed.localPart,
-    domain: allowedDomain.host,
-    isActive: true,
-    createdAt,
-  })
+  try {
+    await db.insert(tempMailbox).values({
+      id,
+      userId,
+      emailAddress: finalEmailAddress,
+      localPart: parsed.localPart,
+      domain: allowedDomain.host,
+      isActive: true,
+      createdAt,
+    })
+  } catch (error) {
+    // A concurrent request may have created the same address between our
+    // existence check and the insert: surface 409, never a 500.
+    if (isUniqueConstraintError(error)) {
+      return { error: "This email address already exists", status: 409 as const }
+    }
+    throw error
+  }
 
   return {
     data: {
@@ -498,8 +619,7 @@ export async function listTempMessagesForUser(
         like(tempMailbox.emailAddress, searchTerm),
         like(tempEmailMessage.subject, searchTerm),
         like(tempEmailMessage.from, searchTerm),
-        like(tempEmailMessage.fromName, searchTerm),
-        like(tempEmailMessage.text, searchTerm)
+        like(tempEmailMessage.fromName, searchTerm)
       )
       : undefined
   )
@@ -526,8 +646,8 @@ export async function listTempMessagesForUser(
         from: tempEmailMessage.from,
         fromName: tempEmailMessage.fromName,
         subject: tempEmailMessage.subject,
-        text: tempEmailMessage.text,
-        html: tempEmailMessage.html,
+        textPreview: sql<string>`substr(${tempEmailMessage.text}, 1, 300)`,
+        htmlPreview: sql<string>`substr(${tempEmailMessage.html}, 1, 500)`,
         receivedAt: tempEmailMessage.receivedAt,
         isRead: tempEmailMessage.isRead,
         hasAttachments: sql<number>`exists(select 1 from temp_email_attachment a where a.message_id = ${tempEmailMessage.id})`,
@@ -542,7 +662,19 @@ export async function listTempMessagesForUser(
 
   const total = totalRes?.count ?? 0
   return {
-    data: rows.map((row) => ({ ...row, hasAttachments: Boolean(row.hasAttachments) })),
+    data: rows.map((row) => ({
+      id: row.id,
+      mailboxId: row.mailboxId,
+      mailboxEmailAddress: row.mailboxEmailAddress,
+      messageId: row.messageId,
+      from: row.from,
+      fromName: row.fromName,
+      subject: row.subject,
+      preview: buildEmailPreview(row.textPreview, row.htmlPreview),
+      receivedAt: row.receivedAt,
+      isRead: row.isRead,
+      hasAttachments: Boolean(row.hasAttachments),
+    })),
     total,
     unread: unreadRes?.count ?? 0,
     page,
@@ -811,7 +943,7 @@ export async function deleteTempMailbox(userId: string, mailboxId: string) {
 }
 
 export async function storeInboundEmail(payload: InboundEmailPayload) {
-  const context = buildInboundEmailContext(payload)
+  const context = await buildInboundEmailContext(payload)
   const mailbox = await findInboundMailbox(context.toEmail)
 
   if (!mailbox) {
@@ -905,8 +1037,8 @@ export async function listAllTempMessages(page: number, limit: number, search?: 
         from: tempEmailMessage.from,
         fromName: tempEmailMessage.fromName,
         subject: tempEmailMessage.subject,
-        text: tempEmailMessage.text,
-        html: tempEmailMessage.html,
+        textPreview: sql<string>`substr(${tempEmailMessage.text}, 1, 300)`,
+        htmlPreview: sql<string>`substr(${tempEmailMessage.html}, 1, 500)`,
         receivedAt: tempEmailMessage.receivedAt,
         isRead: tempEmailMessage.isRead,
         hasAttachments: sql<number>`exists(select 1 from temp_email_attachment a where a.message_id = ${tempEmailMessage.id})`,
@@ -922,7 +1054,22 @@ export async function listAllTempMessages(page: number, limit: number, search?: 
 
   const total = totalRes?.count ?? 0
   return {
-    data: rows.map((row) => ({ ...row, hasAttachments: Boolean(row.hasAttachments) })),
+    data: rows.map((row) => ({
+      id: row.id,
+      mailboxId: row.mailboxId,
+      mailboxEmailAddress: row.mailboxEmailAddress,
+      userId: row.userId,
+      userName: row.userName,
+      userEmail: row.userEmail,
+      messageId: row.messageId,
+      from: row.from,
+      fromName: row.fromName,
+      subject: row.subject,
+      preview: buildEmailPreview(row.textPreview, row.htmlPreview),
+      receivedAt: row.receivedAt,
+      isRead: row.isRead,
+      hasAttachments: Boolean(row.hasAttachments),
+    })),
     total,
     page,
     limit,
@@ -952,8 +1099,8 @@ export async function listArchivedInboundEmails(page: number, limit: number, sea
         from: tempEmailArchive.from,
         fromName: tempEmailArchive.fromName,
         subject: tempEmailArchive.subject,
-        text: tempEmailArchive.text,
-        html: tempEmailArchive.html,
+        textPreview: sql<string>`substr(${tempEmailArchive.text}, 1, 300)`,
+        htmlPreview: sql<string>`substr(${tempEmailArchive.html}, 1, 500)`,
         receivedAt: tempEmailArchive.receivedAt,
         failureReason: tempEmailArchive.failureReason,
         hasAttachments: sql<number>`exists(select 1 from temp_email_archive_attachment a where a.archive_id = ${tempEmailArchive.id})`,
@@ -967,7 +1114,18 @@ export async function listArchivedInboundEmails(page: number, limit: number, sea
 
   const total = totalRes?.count ?? 0
   return {
-    data: rows.map((row) => ({ ...row, hasAttachments: Boolean(row.hasAttachments) })),
+    data: rows.map((row) => ({
+      id: row.id,
+      toEmail: row.toEmail,
+      messageId: row.messageId,
+      from: row.from,
+      fromName: row.fromName,
+      subject: row.subject,
+      preview: buildEmailPreview(row.textPreview, row.htmlPreview),
+      receivedAt: row.receivedAt,
+      failureReason: row.failureReason,
+      hasAttachments: Boolean(row.hasAttachments),
+    })),
     total,
     page,
     limit,

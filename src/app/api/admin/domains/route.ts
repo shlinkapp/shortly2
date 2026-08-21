@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
+import { isUniqueConstraintError } from "@/lib/db-errors"
 import { siteDomain } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { parseDomainHost, writeCreatedSiteDomain } from "@/lib/site-domains"
 import { asc, eq } from "drizzle-orm"
-import { headers } from "next/headers"
 import { z } from "zod"
 
 const createDomainSchema = z.object({
@@ -20,11 +20,7 @@ const createDomainSchema = z.object({
 })
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
-    return null
-  }
-  return session
+  return requireActiveAdmin()
 }
 
 export async function GET() {
@@ -90,17 +86,27 @@ export async function POST(req: NextRequest) {
   }
 
   const id = crypto.randomUUID()
-  const created = await writeCreatedSiteDomain({
-    id,
-    host: normalizedHost,
-    supportsShortLinks,
-    shortLinkMinSlugLength: normalizedShortLinkMinSlugLength,
-    supportsTempEmail,
-    tempEmailMinLocalPartLength: normalizedTempEmailMinLocalPartLength,
-    isActive,
-    isDefaultShortDomain,
-    isDefaultEmailDomain,
-    createdAt: new Date(),
-  })
-  return NextResponse.json({ data: created }, { status: 201 })
+  try {
+    const created = await writeCreatedSiteDomain({
+      id,
+      host: normalizedHost,
+      supportsShortLinks,
+      shortLinkMinSlugLength: normalizedShortLinkMinSlugLength,
+      supportsTempEmail,
+      tempEmailMinLocalPartLength: normalizedTempEmailMinLocalPartLength,
+      isActive,
+      isDefaultShortDomain,
+      isDefaultEmailDomain,
+      createdAt: new Date(),
+    })
+    return NextResponse.json({ data: created }, { status: 201 })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: "Another domain is already the default for this type" },
+        { status: 409 }
+      )
+    }
+    throw error
+  }
 }

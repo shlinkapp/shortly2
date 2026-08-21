@@ -11,11 +11,20 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-zA-Z0-9_-]{1,50}$/.test(slug)
 }
 
+export const MAX_ORIGINAL_URL_LENGTH = 2048
+
 export type UrlValidationResult =
   | { valid: true }
   | { valid: false; reason: string }
 
 export function validateUrl(url: string): UrlValidationResult {
+  if (url.length > MAX_ORIGINAL_URL_LENGTH) {
+    return {
+      valid: false,
+      reason: `链接过长，最多支持 ${MAX_ORIGINAL_URL_LENGTH} 个字符`,
+    }
+  }
+
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -78,7 +87,7 @@ export function validateUrl(url: string): UrlValidationResult {
     }
   }
 
-  // 阻止 IPv6 回环及链路本地地址 (简单判断)
+  // 阻止 IPv6 回环、链路本地、内网及 IPv4 映射（::ffff:）地址
   if (hostname.includes("[") && hostname.includes("]")) {
     const ipv6 = hostname.slice(1, -1).toLowerCase()
     if (
@@ -86,11 +95,12 @@ export function validateUrl(url: string): UrlValidationResult {
       ipv6 === "::" ||
       ipv6.startsWith("fe80:") ||
       ipv6.startsWith("fc00:") ||
-      ipv6.startsWith("fd00:")
+      ipv6.startsWith("fd00:") ||
+      ipv6.startsWith("::ffff:")
     ) {
       return {
         valid: false,
-        reason: "不支持 IPv6 回环、链路本地或内网地址",
+        reason: "不支持 IPv6 回环、链路本地、内网或 IPv4 映射地址",
       }
     }
   }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { shortLink } from "@/lib/schema"
 import { createLinkLog } from "@/lib/link-logs"
 import { revalidateShortLinkCache } from "@/lib/cache/revalidate"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -15,7 +15,7 @@ export async function DELETE(
 ) {
   await initDb()
   const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
+  const session = await requireActiveUser()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -36,18 +36,27 @@ export async function DELETE(
   }
 
   const ip = getClientIpFromHeaders(headersList)
-  await createLinkLog({
-    linkId: link.id,
-    linkSlug: link.slug,
-    ownerUserId: link.userId,
-    eventType: "link_manual_deleted_by_user",
-    referrer: headersList.get("referer"),
-    userAgent: headersList.get("user-agent"),
-    ipAddress: ip,
-    statusCode: 200,
+
+  // Delete and its audit entry commit together: a log without a deletion (or
+  // the reverse) would be a misleading audit record.
+  await db.transaction(async (tx) => {
+    await createLinkLog(
+      {
+        linkId: link.id,
+        linkSlug: link.slug,
+        ownerUserId: link.userId,
+        eventType: "link_manual_deleted_by_user",
+        referrer: headersList.get("referer"),
+        userAgent: headersList.get("user-agent"),
+        ipAddress: ip,
+        statusCode: 200,
+      },
+      tx
+    )
+
+    await tx.delete(shortLink).where(eq(shortLink.id, id))
   })
 
-  await db.delete(shortLink).where(eq(shortLink.id, id))
   revalidateShortLinkCache(link.domain, link.slug)
   return NextResponse.json({ success: true })
 }

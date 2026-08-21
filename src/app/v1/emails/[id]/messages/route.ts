@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { parseBoundedInt } from "@/lib/http"
 import { listTempMessagesForMailbox } from "@/lib/temp-email"
 
@@ -21,7 +21,7 @@ export async function GET(
   const limit = parseBoundedInt(searchParams.get("limit") ?? searchParams.get("size"), 20, 1, 100)
 
   const result = await listTempMessagesForMailbox(authResult.data.userId, id, page, limit)
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if (!result) {
     return NextResponse.json({ error: "Mailbox not found" }, { status: 404 })

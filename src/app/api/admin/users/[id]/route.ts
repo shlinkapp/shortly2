@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db, initDb } from "@/lib/db"
 import { session as authSession, user } from "@/lib/schema"
 import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveAdmin } from "@/lib/require-user"
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -18,8 +18,8 @@ export async function PATCH(
 ) {
   await initDb()
   const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
-  if (!session || (session.user as { role?: string }).role !== "admin") {
+  const session = await requireActiveAdmin()
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isRequestOriginAllowed(headersList)) {
@@ -46,32 +46,38 @@ export async function PATCH(
     ? parsedBody.data.banReason?.trim() || "管理员封禁"
     : null
 
-  const updatedUser = await db
-    .update(user)
-    .set({
-      banned: parsedBody.data.banned,
-      banReason,
-      banExpires: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, id))
-    .returning({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      emailVerified: user.emailVerified,
-      image: user.image,
-      banned: user.banned,
-      banReason: user.banReason,
-      banExpires: user.banExpires,
-      createdAt: user.createdAt,
-    })
-    .get()
+  // Ban flag and session deletion must commit atomically: if the session delete
+  // fails, the user must not be left banned with live sessions (and vice versa).
+  const updatedUser = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(user)
+      .set({
+        banned: parsedBody.data.banned,
+        banReason,
+        banExpires: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, id))
+      .returning({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        image: user.image,
+        banned: user.banned,
+        banReason: user.banReason,
+        banExpires: user.banExpires,
+        createdAt: user.createdAt,
+      })
+      .get()
 
-  if (parsedBody.data.banned) {
-    await db.delete(authSession).where(eq(authSession.userId, id))
-  }
+    if (parsedBody.data.banned) {
+      await tx.delete(authSession).where(eq(authSession.userId, id))
+    }
+
+    return updated
+  })
 
   return NextResponse.json({ user: updatedUser })
 }

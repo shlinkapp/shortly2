@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { initDb } from "@/lib/db"
+import { isRequestOriginAllowed } from "@/lib/http"
+import { requireActiveUser } from "@/lib/require-user"
 import { deleteTempMailbox } from "@/lib/temp-email"
-import { headers } from "next/headers"
 
 async function requireUser() {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await requireActiveUser()
   if (!session) {
     return null
   }
@@ -21,6 +21,9 @@ export async function DELETE(
   const user = await requireUser()
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!isRequestOriginAllowed(req.headers)) {
+    return NextResponse.json({ error: "Forbidden origin" }, { status: 403 })
   }
 
   const { id } = await params

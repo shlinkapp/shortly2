@@ -3,12 +3,12 @@ import { initDb } from "@/lib/db"
 import { getClientIpFromHeaders } from "@/lib/ip"
 import { SHORT_LINK_EXPIRES_IN_VALUES } from "@/lib/short-link-expiration"
 import { z } from "zod"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { getSiteSettings } from "@/lib/site-settings"
 import { createShortLink } from "@/lib/shorten"
 
 const openApiShortenSchema = z.object({
-  url: z.string().min(1),
+  url: z.string().min(1).max(2048),
   customSlug: z.string().trim().min(1).max(50).optional(),
   domain: z.string().trim().min(1).max(255).optional(),
   expiresIn: z.enum(SHORT_LINK_EXPIRES_IN_VALUES).optional(),
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   return NextResponse.json(result.data, { status: 201 })
 }

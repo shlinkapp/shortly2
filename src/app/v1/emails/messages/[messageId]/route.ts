@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { deleteTempMessage, getTempMessageDetail } from "@/lib/temp-email"
 
 export async function GET(
@@ -16,7 +16,7 @@ export async function GET(
 
   const { messageId } = await params
   const detail = await getTempMessageDetail(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if (!detail) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })
@@ -38,7 +38,7 @@ export async function DELETE(
 
   const { messageId } = await params
   const success = await deleteTempMessage(authResult.data.userId, messageId)
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   if (!success) {
     return NextResponse.json({ error: "Email message not found" }, { status: 404 })

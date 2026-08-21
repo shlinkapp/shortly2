@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { initDb, db } from "@/lib/db"
-import { requireApiKeyUser, touchApiKeyUsage } from "@/lib/api-auth"
+import { isUniqueConstraintError } from "@/lib/db-errors"
+import { requireApiKeyUser, scheduleApiKeyUsageTouch } from "@/lib/api-auth"
 import { telegramBinding } from "@/lib/schema"
-import { eq } from "drizzle-orm"
+
+const CHAT_ID_PATTERN = /^[-A-Za-z0-9_@]{1,64}$/
 
 export async function POST(req: NextRequest) {
   await initDb()
@@ -14,35 +16,43 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const chatId = typeof body?.chatId === "string" ? body.chatId.trim() : ""
-  const username = typeof body?.username === "string" ? body.username.trim() : null
+  const username = typeof body?.username === "string" ? body.username.trim().slice(0, 64) || null : null
 
-  if (!chatId) {
-    return NextResponse.json({ error: "chatId is required" }, { status: 400 })
+  if (!chatId || !CHAT_ID_PATTERN.test(chatId)) {
+    return NextResponse.json(
+      { error: "chatId 格式无效，仅允许 1-64 位字母、数字、下划线、@ 或负号" },
+      { status: 400 }
+    )
   }
 
-  const existing = await db
-    .select({ id: telegramBinding.id })
-    .from(telegramBinding)
-    .where(eq(telegramBinding.userId, authResult.data.userId))
-    .get()
-
-  if (existing) {
+  try {
+    // Atomic upsert on the per-user unique index: concurrent bind requests can
+    // no longer race read-then-insert into a 500.
     await db
-      .update(telegramBinding)
-      .set({ chatId, username, updatedAt: new Date() })
-      .where(eq(telegramBinding.id, existing.id))
-  } else {
-    await db.insert(telegramBinding).values({
-      id: crypto.randomUUID(),
-      userId: authResult.data.userId,
-      chatId,
-      username,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+      .insert(telegramBinding)
+      .values({
+        id: crypto.randomUUID(),
+        userId: authResult.data.userId,
+        chatId,
+        username,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: telegramBinding.userId,
+        set: { chatId, username, updatedAt: new Date() },
+      })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: "该 chatId 已被其他账号绑定，请更换后重试" },
+        { status: 409 }
+      )
+    }
+    throw error
   }
 
-  await touchApiKeyUsage(authResult.data)
+  scheduleApiKeyUsageTouch(authResult.data)
 
   return NextResponse.json({
     success: true,

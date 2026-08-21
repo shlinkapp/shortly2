@@ -24,6 +24,8 @@ interface CreateLinkLogInput {
   statusCode?: number | null
 }
 
+type LinkLogTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
 function reportLinkLogFailure(input: CreateLinkLogInput, error: unknown) {
   reportDiagnostic({
     scope: "link_log",
@@ -39,9 +41,16 @@ function reportLinkLogFailure(input: CreateLinkLogInput, error: unknown) {
   })
 }
 
-export async function createLinkLog(input: CreateLinkLogInput) {
+/**
+ * Write an audit log entry. Without a transaction this is best-effort (errors
+ * are swallowed and reported). When a transaction is passed, the write joins
+ * the caller's transaction and failures propagate so the whole operation
+ * (e.g. deleting a link) rolls back instead of leaving a misleading log.
+ */
+export async function createLinkLog(input: CreateLinkLogInput, tx?: LinkLogTransaction) {
+  const target = tx ?? db
   try {
-    await db.insert(linkLog).values({
+    await target.insert(linkLog).values({
       id: crypto.randomUUID(),
       linkId: input.linkId,
       linkSlug: input.linkSlug,
@@ -54,6 +63,9 @@ export async function createLinkLog(input: CreateLinkLogInput) {
     })
   } catch (error) {
     reportLinkLogFailure(input, error)
+    if (tx) {
+      throw error
+    }
   }
 }
 

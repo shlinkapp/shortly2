@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
+import { isUniqueConstraintError } from "@/lib/db-errors"
 import { revalidateShortLinkCache } from "@/lib/cache/revalidate"
 import { buildShortUrl, isSelfShortenTarget } from "@/lib/http"
 import { getAllowedShortDomain } from "@/lib/site-domains"
 import { createLinkLog, type LinkLogEventType } from "@/lib/link-logs"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { consumeRateLimit } from "@/lib/rate-limit"
 import { shortLink } from "@/lib/schema"
 import {
   resolveShortLinkExpiresAt,
@@ -78,21 +79,24 @@ export async function createShortLink(
     return { error: `自定义后缀至少需要 ${shortDomain.minSlugLength} 个字符`, status: 400 }
   }
 
-  const slug = input.customSlug || generateSlug(Math.max(5, shortDomain.minSlugLength))
-
-  const existingSlug = await db
-    .select({ id: shortLink.id })
-    .from(shortLink)
-    .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, slug)))
-    .get()
-  if (existingSlug) {
-    return { error: input.messages.duplicateSlugError, status: 409 }
+  // Pre-check only custom slugs; generated slugs are checked by the unique
+  // index and retried below (a collision in the ~4M generated space should not
+  // surface as a "slug taken" error to a user who never picked one).
+  if (input.customSlug) {
+    const existingSlug = await db
+      .select({ id: shortLink.id })
+      .from(shortLink)
+      .where(and(eq(shortLink.domain, shortDomain.host), eq(shortLink.slug, input.customSlug)))
+      .get()
+    if (existingSlug) {
+      return { error: input.messages.duplicateSlugError, status: 409 }
+    }
   }
 
-  const rateLimitResult = await checkRateLimit({
-    userId: input.actorUserId,
-    userLimit: input.userLimit,
-  })
+  const rateLimitResult = await consumeRateLimit(
+    `shorten:user:${input.actorUserId}`,
+    input.userLimit
+  )
 
   if (!rateLimitResult.success) {
     const failure: CreateShortLinkFailure = {
@@ -112,33 +116,49 @@ export async function createShortLink(
 
   const id = crypto.randomUUID()
 
-  try {
-    await db.insert(shortLink).values({
-      id,
-      userId: input.actorUserId,
-      originalUrl: input.url,
-      slug,
-      domain: shortDomain.host,
-      clicks: 0,
-      creatorIp: input.creatorIp,
-      maxClicks: finalMaxClicks,
-      expiresAt: finalExpiresAt,
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes("UNIQUE")) {
-      return { error: input.messages.duplicateSlugError, status: 409 }
-    }
+  const MAX_GENERATED_SLUG_ATTEMPTS = 8
+  let insertedSlug: string | null = null
 
-    throw error
+  for (let attempt = 0; attempt < MAX_GENERATED_SLUG_ATTEMPTS; attempt += 1) {
+    const slug = input.customSlug || generateSlug(Math.max(5, shortDomain.minSlugLength))
+
+    try {
+      await db.insert(shortLink).values({
+        id,
+        userId: input.actorUserId,
+        originalUrl: input.url,
+        slug,
+        domain: shortDomain.host,
+        clicks: 0,
+        creatorIp: input.creatorIp,
+        maxClicks: finalMaxClicks,
+        expiresAt: finalExpiresAt,
+      })
+      insertedSlug = slug
+      break
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error
+      }
+
+      if (input.customSlug) {
+        return { error: input.messages.duplicateSlugError, status: 409 }
+      }
+
+      // Generated slug collided: try a fresh one on the next loop iteration.
+    }
+  }
+
+  if (!insertedSlug) {
+    return { error: input.messages.duplicateSlugError, status: 409 }
   }
 
   // Clear any cached negative lookup for this slug so the new link resolves.
-  revalidateShortLinkCache(shortDomain.host, slug)
+  revalidateShortLinkCache(shortDomain.host, insertedSlug)
 
   await createLinkLog({
     linkId: id,
-    linkSlug: slug,
+    linkSlug: insertedSlug,
     ownerUserId: input.actorUserId,
     eventType: input.logEventType,
     referrer: input.requestHeaders.get("referer"),
@@ -149,8 +169,8 @@ export async function createShortLink(
 
   return {
     data: {
-      shortUrl: buildShortUrl(shortDomain.host, slug),
-      slug,
+      shortUrl: buildShortUrl(shortDomain.host, insertedSlug),
+      slug: insertedSlug,
       domain: shortDomain.host,
       maxClicks: finalMaxClicks,
     },
